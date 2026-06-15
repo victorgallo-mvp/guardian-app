@@ -1,0 +1,15 @@
+# Configuração padrão do cliente atual (mono-tenant operacional).
+#
+# Estes valores servem como fallback quando o documento `Cliente` correspondente
+# ainda não foi cadastrado no Mongo, ou como referência pro script de cadastro
+# inicial. Em produção, a configuração efetiva vive no banco (modelo Cliente).
+
+identificador: agencia-cobaia
+nome: "Agência Cobaia"
+
+configuracoes:
+  nivelSensibilidadePadrao: medio
+  janelaContextoMensagens: 30
+  limiteCustoDiarioUsd: 5.00
+  horarioSilenciosoInicio: "22:00"
+  horarioSilenciosoFim: "08:00"

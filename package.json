@@ -1,0 +1,34 @@
+{
+  "name": "guardiao-wpp",
+  "version": "1.0.0",
+  "description": "Agente de IA que monitora grupos de WhatsApp e notifica responsáveis sobre gatilhos que exigem atenção humana",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cadastrar-grupo": "node scripts/cadastrar-grupo.js",
+    "cadastrar-responsavel": "node scripts/cadastrar-responsavel.js",
+    "testar-deteccao": "node scripts/testar-deteccao.js",
+    "simulador": "node scripts/simulador.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.9.2",
+    "node-cron": "^3.0.3",
+    "winston": "^3.17.0",
+    "yaml": "^2.6.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}

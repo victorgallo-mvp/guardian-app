@@ -8,7 +8,7 @@
  */
 import { jaNotificadoRecentemente } from "../gatilhos/deduplicador.js";
 import { grupoEmSnooze } from "../filtros/grupo-permitido.filtro.js";
-import { dentroDaJanelaHoraria, formatarHora } from "../../shared/utils.js";
+import { dentroDaJanelaHoraria, diaDaSemana, formatarHora } from "../../shared/utils.js";
 
 /**
  * Verifica se uma notificação pode ser enviada agora pra um responsável.
@@ -34,7 +34,7 @@ export async function podeEnviarNotificacao({ grupo, analise, responsavel }) {
 
   const agora = new Date();
   const diasUteis = responsavel.preferencias?.diasUteis ?? [1, 2, 3, 4, 5];
-  if (!diasUteis.includes(agora.getDay())) {
+  if (!diasUteis.includes(diaDaSemana(agora))) {
     return { podeEnviar: false, motivo: "Fora dos dias configurados pro responsável" };
   }
 

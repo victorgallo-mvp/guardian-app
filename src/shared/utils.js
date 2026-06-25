@@ -49,13 +49,23 @@ export function truncar(texto, tamanhoMaximo) {
 }
 
 /**
- * Formata um timestamp Date pro formato HH:mm, no timezone local do processo.
+ * Formata um timestamp Date pro formato HH:mm no horário de Brasília.
  */
 export function formatarHora(data) {
   return new Date(data).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo"
   });
+}
+
+/**
+ * Retorna o dia da semana (0=Dom, 6=Sáb) no horário de Brasília.
+ */
+export function diaDaSemana(data) {
+  return new Date(
+    new Date(data).toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+  ).getDay();
 }
 
 /**

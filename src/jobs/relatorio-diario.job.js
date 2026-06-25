@@ -5,6 +5,7 @@
 import Grupo from "../dominio/grupo.modelo.js";
 import Responsavel from "../dominio/responsavel.modelo.js";
 import Notificacao from "../dominio/notificacao.modelo.js";
+import Mensagem from "../dominio/mensagem.modelo.js";
 import { clienteEvolutionPadrao } from "../infra/evolution-client.js";
 import config from "../config/index.js";
 import logger from "../infra/logger.js";
@@ -14,14 +15,14 @@ function paraJidContato(numero) {
   return `${numero.replace(/\D/g, "")}@s.whatsapp.net`;
 }
 
-/** Retorna a data/hora correspondente ao início do dia atual (00:00, horário local). */
+/** Retorna 00:00 do dia atual no horário de Brasília, expresso em UTC. */
 function inicioDoDia() {
-  const agora = new Date();
-  return new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const dataSP = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  return new Date(`${dataSP}T00:00:00-03:00`);
 }
 
 /** Monta o texto do relatório diário pra um responsável, considerando apenas os grupos dele. */
-function montarTextoRelatorio(grupos, notificacoesHoje) {
+function montarTextoRelatorio(grupos, notificacoesHoje, msgsPorGrupo) {
   const linhas = [
     `📋 *Resumo do dia* — ${grupos.length} grupo(s) monitorado(s)`,
     `Notificações enviadas hoje: ${notificacoesHoje}`,
@@ -29,8 +30,8 @@ function montarTextoRelatorio(grupos, notificacoesHoje) {
   ];
 
   for (const grupo of grupos) {
-    const stats = grupo.estatisticas ?? {};
-    linhas.push(`• ${grupo.nomeGrupo}: ${stats.mensagensProcessadasTotal ?? 0} mensagens processadas no total`);
+    const msgs = msgsPorGrupo[grupo._id.toString()] ?? 0;
+    linhas.push(`• ${grupo.nomeGrupo}: ${msgs} msg(s) processada(s) hoje`);
   }
 
   return linhas.join("\n");
@@ -49,12 +50,19 @@ export async function enviarRelatorioDiario() {
     const grupos = await Grupo.find({ responsaveis: responsavel._id, ativo: true });
     if (!grupos.length) continue;
 
-    const notificacoesHoje = await Notificacao.countDocuments({
-      responsavelId: responsavel._id,
-      enviadaEm: { $gte: desde }
-    });
+    const grupoIds = grupos.map((g) => g._id);
 
-    const texto = montarTextoRelatorio(grupos, notificacoesHoje);
+    const [notificacoesHoje, contagensHoje] = await Promise.all([
+      Notificacao.countDocuments({ responsavelId: responsavel._id, enviadaEm: { $gte: desde } }),
+      Mensagem.aggregate([
+        { $match: { grupoId: { $in: grupoIds }, recebidaEm: { $gte: desde } } },
+        { $group: { _id: "$grupoId", total: { $sum: 1 } } }
+      ])
+    ]);
+
+    const msgsPorGrupo = Object.fromEntries(contagensHoje.map((c) => [c._id.toString(), c.total]));
+
+    const texto = montarTextoRelatorio(grupos, notificacoesHoje, msgsPorGrupo);
 
     try {
       await clienteEvolutionPadrao.post(`/message/sendText/${config.evolution.instanceName}`, {

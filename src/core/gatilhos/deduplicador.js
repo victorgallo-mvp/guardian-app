@@ -14,18 +14,20 @@ import Analise from "../../dominio/analise.modelo.js";
 const JANELA_DEDUPLICACAO_MINUTOS_PADRAO = 30;
 
 /**
- * Verifica se já existe uma notificação recente pro mesmo grupo + gatilho.
+ * Verifica se já existe uma notificação recente pro mesmo grupo + responsável + gatilho.
  *
  * @param {string} grupoId
  * @param {string} idGatilho
+ * @param {string} responsavelId
  * @param {number} janelaMinutos - tamanho da janela de deduplicação
  * @returns {Promise<boolean>}
  */
-export async function jaNotificadoRecentemente(grupoId, idGatilho, janelaMinutos = JANELA_DEDUPLICACAO_MINUTOS_PADRAO) {
+export async function jaNotificadoRecentemente(grupoId, idGatilho, responsavelId, janelaMinutos = JANELA_DEDUPLICACAO_MINUTOS_PADRAO) {
   const desde = new Date(Date.now() - janelaMinutos * 60 * 1000);
 
   const notificacaoRecente = await Notificacao.findOne({
     grupoId,
+    responsavelId,
     enviadaEm: { $gte: desde }
   })
     .populate({ path: "analiseId", select: "detectado.gatilho", model: Analise })

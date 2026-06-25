@@ -23,7 +23,7 @@ export async function podeEnviarNotificacao({ grupo, analise, responsavel }) {
     return { podeEnviar: false, motivo: "Grupo está em snooze" };
   }
 
-  const duplicado = await jaNotificadoRecentemente(grupo._id, analise.gatilho);
+  const duplicado = await jaNotificadoRecentemente(grupo._id, analise.gatilho, responsavel._id);
   if (duplicado) {
     return { podeEnviar: false, motivo: "Notificação duplicada (mesmo gatilho recente)" };
   }

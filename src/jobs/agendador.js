@@ -20,8 +20,8 @@ export function iniciarJobs() {
     }
   });
 
-  // Diariamente às 18:00: envia relatório resumido aos responsáveis
-  cron.schedule("0 18 * * *", async () => {
+  // Diariamente às 18:00 SP (21:00 UTC — Railway roda em UTC)
+  cron.schedule("0 21 * * *", async () => {
     try {
       await enviarRelatorioDiario();
     } catch (erro) {
@@ -29,5 +29,5 @@ export function iniciarJobs() {
     }
   });
 
-  logger.info("Jobs periódicos agendados (verificação de inatividade a cada 30min, relatório diário às 18:00)");
+  logger.info("Jobs periódicos agendados (verificação de inatividade a cada 30min, relatório diário às 18:00 SP)");
 }

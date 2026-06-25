@@ -8,7 +8,7 @@ identificador: agencia-cobaia
 nome: "Agência Cobaia"
 
 configuracoes:
-  nivelSensibilidadePadrao: medio
+  nivelSensibilidadePadrao: alto
   janelaContextoMensagens: 30
   limiteCustoDiarioUsd: 5.00
   horarioSilenciosoInicio: "22:00"

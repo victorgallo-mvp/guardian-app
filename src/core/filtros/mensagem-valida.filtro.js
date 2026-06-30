@@ -8,6 +8,7 @@
  */
 
 const TIPOS_COM_TEXTO_EXTRAIVEL = new Set(["texto", "imagem", "documento"]);
+const TIPOS_COM_TRANSCRICAO = new Set(["audio"]);
 
 /**
  * Extrai o texto relevante de um payload de mensagem da Evolution API,
@@ -65,6 +66,12 @@ export function mensagemEhValida(mensagemPayload, grupo) {
   }
 
   const tipo = determinarTipoMensagem(mensagemPayload);
+
+  if (TIPOS_COM_TRANSCRICAO.has(tipo)) {
+    // Texto será preenchido pelo serviço de transcrição no pipeline
+    return { valida: true, texto: null, tipo };
+  }
+
   if (!TIPOS_COM_TEXTO_EXTRAIVEL.has(tipo)) {
     return { valida: false, motivo: `Tipo de mensagem "${tipo}" não possui texto analisável` };
   }

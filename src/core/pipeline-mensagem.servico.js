@@ -12,6 +12,7 @@ import Cliente from "../dominio/cliente.modelo.js";
 import config from "../config/index.js";
 import logger from "../infra/logger.js";
 import { mensagemEhValida } from "./filtros/mensagem-valida.filtro.js";
+import { transcreverAudio } from "./ia/transcricao.servico.js";
 import { obterGrupoMonitorado, grupoEmSnooze } from "./filtros/grupo-permitido.filtro.js";
 import { obterContextoRecente } from "./contexto/janela-rolante.servico.js";
 import { registrarMensagemProcessada } from "./contexto/memoria-grupo.servico.js";
@@ -113,6 +114,15 @@ export async function processarMensagemDeGrupo(mensagemPayload) {
   if (!validacao.valida) {
     logger.debug("Mensagem descartada pelo filtro de validade", { motivo: validacao.motivo });
     return;
+  }
+
+  if (validacao.tipo === "audio") {
+    const transcricao = await transcreverAudio(mensagemPayload);
+    if (!transcricao) {
+      logger.info("Áudio sem transcrição disponível, descartando", { grupoId: grupo._id });
+      return;
+    }
+    validacao.texto = transcricao;
   }
 
   const idMensagemWhatsapp = mensagemPayload.key.id;

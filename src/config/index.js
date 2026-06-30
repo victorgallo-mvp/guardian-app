@@ -26,6 +26,8 @@ const esquemaEnv = z.object({
   MODELO_TRIAGEM: z.string().default("claude-haiku-4-5"),
   MODELO_ANALISE: z.string().default("claude-sonnet-4-5"),
 
+  GROQ_API_KEY: z.string().optional(),
+
   EVOLUTION_API_URL: z.string().url("EVOLUTION_API_URL deve ser uma URL válida"),
   EVOLUTION_API_KEY: z.string().min(1, "EVOLUTION_API_KEY é obrigatório"),
   EVOLUTION_INSTANCE_NAME: z.string().min(1, "EVOLUTION_INSTANCE_NAME é obrigatório"),
@@ -73,6 +75,10 @@ const config = {
     apiKey: env.ANTHROPIC_API_KEY,
     modeloTriagem: env.MODELO_TRIAGEM,
     modeloAnalise: env.MODELO_ANALISE
+  },
+
+  groq: {
+    apiKey: env.GROQ_API_KEY ?? null
   },
 
   evolution: {

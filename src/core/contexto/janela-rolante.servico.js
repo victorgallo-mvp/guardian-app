@@ -9,6 +9,7 @@ import Mensagem from "../../dominio/mensagem.modelo.js";
 import Cliente from "../../dominio/cliente.modelo.js";
 
 const TAMANHO_JANELA_PADRAO = 30;
+const HORAS_CONTEXTO_MAXIMO = 6;
 
 /** Retorna o tamanho de janela de contexto configurado pro cliente, ou o padrão. */
 async function obterTamanhoJanela(clientId) {
@@ -32,9 +33,10 @@ export async function obterContextoRecente(clientId, grupoId, opcoes = {}) {
   const { antesDe, excluirMensagemId } = opcoes;
   const tamanhoJanela = await obterTamanhoJanela(clientId);
 
-  const filtro = { grupoId };
+  const limiteTemporalContexto = new Date(Date.now() - HORAS_CONTEXTO_MAXIMO * 60 * 60 * 1000);
+  const filtro = { grupoId, recebidaEm: { $gte: limiteTemporalContexto } };
   if (excluirMensagemId) filtro._id = { $ne: excluirMensagemId };
-  if (antesDe) filtro.recebidaEm = { $lt: antesDe };
+  if (antesDe) filtro.recebidaEm.$lt = antesDe;
 
   const mensagens = await Mensagem.find(filtro)
     .sort({ recebidaEm: -1 })

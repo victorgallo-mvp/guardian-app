@@ -52,6 +52,8 @@ const grupoSchema = new Schema(
 
     gatilhosAtivos: { type: [String], default: [] },
 
+    membrosAgencia: { type: [String], default: [] },
+
     configuracoesEspecificas: { type: configuracoesEspecificasSchema, default: () => ({}) },
 
     estatisticas: { type: estatisticasSchema, default: () => ({}) },

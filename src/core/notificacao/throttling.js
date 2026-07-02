@@ -9,6 +9,16 @@
 import { jaNotificadoRecentemente } from "../gatilhos/deduplicador.js";
 import { grupoEmSnooze } from "../filtros/grupo-permitido.filtro.js";
 import { dentroDaJanelaHoraria, diaDaSemana, formatarHora } from "../../shared/utils.js";
+import Notificacao from "../../dominio/notificacao.modelo.js";
+
+const COOLDOWN_GERAL_MINUTOS = 15;
+
+/** Retorna true se qualquer notificação foi enviada pro responsável neste grupo nos últimos COOLDOWN_GERAL_MINUTOS. */
+async function grupoEmCooldownGeral(grupoId, responsavelId) {
+  const desde = new Date(Date.now() - COOLDOWN_GERAL_MINUTOS * 60 * 1000);
+  const recente = await Notificacao.findOne({ grupoId, responsavelId, enviadaEm: { $gte: desde } }).lean();
+  return recente !== null;
+}
 
 /**
  * Verifica se uma notificação pode ser enviada agora pra um responsável.
@@ -23,13 +33,18 @@ export async function podeEnviarNotificacao({ grupo, analise, responsavel }) {
     return { podeEnviar: false, motivo: "Grupo está em snooze" };
   }
 
+  if (analise.severidade === "critico") {
+    return { podeEnviar: true };
+  }
+
+  const emCooldown = await grupoEmCooldownGeral(grupo._id, responsavel._id);
+  if (emCooldown) {
+    return { podeEnviar: false, motivo: `Grupo em cooldown (notificação enviada há menos de ${COOLDOWN_GERAL_MINUTOS} min)` };
+  }
+
   const duplicado = await jaNotificadoRecentemente(grupo._id, analise.gatilho, responsavel._id);
   if (duplicado) {
     return { podeEnviar: false, motivo: "Notificação duplicada (mesmo gatilho recente)" };
-  }
-
-  if (analise.severidade === "critico") {
-    return { podeEnviar: true };
   }
 
   const agora = new Date();

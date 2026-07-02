@@ -13,3 +13,9 @@ configuracoes:
   limiteCustoDiarioUsd: 5.00
   horarioSilenciosoInicio: "22:00"
   horarioSilenciosoFim: "08:00"
+
+# JIDs dos membros da equipe da agência (Feeling Mkt Digital).
+# Formato: 55DDDNNNNNNNNN (sem @s.whatsapp.net).
+# Mensagens desses JIDs são marcadas como "(agência)" no contexto da IA,
+# evitando falsos positivos em fora_do_escopo e inatividade_preocupante.
+membrosEquipe: []

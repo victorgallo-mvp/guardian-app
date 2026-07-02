@@ -25,7 +25,7 @@ const JANELA_DEDUPLICACAO_MINUTOS_PADRAO = 30;
 export async function jaNotificadoRecentemente(grupoId, idGatilho, responsavelId, janelaMinutos = JANELA_DEDUPLICACAO_MINUTOS_PADRAO) {
   const desde = new Date(Date.now() - janelaMinutos * 60 * 1000);
 
-  const notificacaoRecente = await Notificacao.findOne({
+  const notificacoesRecentes = await Notificacao.find({
     grupoId,
     responsavelId,
     enviadaEm: { $gte: desde }
@@ -33,7 +33,5 @@ export async function jaNotificadoRecentemente(grupoId, idGatilho, responsavelId
     .populate({ path: "analiseId", select: "detectado.gatilho", model: Analise })
     .lean();
 
-  if (!notificacaoRecente) return false;
-
-  return notificacaoRecente.analiseId?.detectado?.gatilho === idGatilho;
+  return notificacoesRecentes.some((n) => n.analiseId?.detectado?.gatilho === idGatilho);
 }

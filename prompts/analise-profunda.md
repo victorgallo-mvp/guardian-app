@@ -8,19 +8,23 @@ acontece em uma conversa.
 
 - Tipo de grupo: {{tipoGrupo}}
 - Nome do grupo: {{nomeGrupo}}
-- Contexto adicional fornecido pelo cliente: {{contextoAdicional}}
+- Contexto adicional: {{contextoAdicional}}
+
+## Participantes
+
+{{participantes}}
 
 ## Gatilhos que você pode identificar neste grupo
 
 {{gatilhosAplicaveis}}
 
-## Mensagens anteriores (contexto da conversa, mais antigas primeiro)
+## Mensagens anteriores (últimas 6h, mais antigas primeiro)
 
 {{mensagensAnteriores}}
 
 ## Mensagem a analisar
 
-De: {{remetente}}
+De: {{remetente}} ({{papel}})
 Texto: "{{mensagemAtual}}"
 
 ## Sua tarefa

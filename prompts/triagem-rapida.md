@@ -8,15 +8,19 @@ encaminhada para uma análise mais profunda feita por um modelo mais robusto.
 
 - Tipo de grupo: {{tipoGrupo}}
 - Nome do grupo: {{nomeGrupo}}
-- Contexto adicional fornecido pelo cliente: {{contextoAdicional}}
+- Contexto adicional: {{contextoAdicional}}
 
-## Mensagens anteriores (mais antigas primeiro)
+## Participantes
+
+{{participantes}}
+
+## Mensagens anteriores (últimas 6h, mais antigas primeiro)
 
 {{mensagensAnteriores}}
 
 ## Mensagem a triar
 
-De: {{remetente}}
+De: {{remetente}} ({{papel}})
 Texto: "{{mensagemAtual}}"
 
 ## Sua tarefa

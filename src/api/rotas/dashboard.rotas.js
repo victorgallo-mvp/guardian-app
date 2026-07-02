@@ -154,12 +154,14 @@ router.get("/grupos-alertas", async (req, res) => {
     .sort((a, b) => {
       // Snooze vai para o fim
       if (a.emSnooze !== b.emSnooze) return a.emSnooze ? 1 : -1;
-      // Ordena por pior severidade
+      // Primário: notificação mais recente primeiro
+      const dtA = new Date(a.alertas.ultimaEm ?? 0).getTime();
+      const dtB = new Date(b.alertas.ultimaEm ?? 0).getTime();
+      if (dtB !== dtA) return dtB - dtA;
+      // Empate: pior severidade
       const sa = ORDEM_SEVERIDADE[a.alertas.piorSeveridade] ?? 99;
       const sb = ORDEM_SEVERIDADE[b.alertas.piorSeveridade] ?? 99;
-      if (sa !== sb) return sa - sb;
-      // Empate: mais recente primeiro
-      return new Date(b.alertas.ultimaEm ?? 0) - new Date(a.alertas.ultimaEm ?? 0);
+      return sa - sb;
     });
 
   res.json(resultado);

@@ -21,6 +21,29 @@ import { executarTriagem } from "./ia/triagem.servico.js";
 import { executarAnalise } from "./ia/analise.servico.js";
 import { deveGerarNotificacao } from "./gatilhos/classificador.js";
 import { enviarNotificacoes } from "./notificacao/enviador.servico.js";
+import { resolverJidsAgencia } from "./ia/construtor-prompt.js";
+
+// Gatilhos que só devem notificar se a mensagem do cliente está sem resposta há pelo menos N horas
+const GATILHOS_COM_DELAY_HORAS = { fora_do_escopo: 2, inatividade_preocupante: 2 };
+
+/**
+ * Retorna true se o gatilho exige delay mínimo e esse tempo ainda não passou.
+ * Busca a mensagem de cliente mais recente no contexto e verifica o tempo decorrido.
+ */
+async function gatilhoAindaNoPrazoDeEspera(analise, contexto, grupo) {
+  const delayHoras = GATILHOS_COM_DELAY_HORAS[analise.gatilho];
+  if (!delayHoras) return false;
+
+  const jidsAgencia = await resolverJidsAgencia(grupo.clientId, grupo.membrosAgencia);
+  const msgs = contexto.mensagensAnteriores ?? [];
+
+  // Mensagens ordenadas mais antigas primeiro — percorrer de trás pra frente
+  const ultimaMsgCliente = [...msgs].reverse().find((m) => !jidsAgencia.has(m.remetenteJid));
+  if (!ultimaMsgCliente) return true; // sem histórico de cliente, não notifica
+
+  const idadeHoras = (Date.now() - new Date(ultimaMsgCliente.recebidaEm).getTime()) / (1000 * 60 * 60);
+  return idadeHoras < delayHoras;
+}
 
 /** Extrai o timestamp da mensagem do payload da Evolution API, com fallback pro horário atual. */
 function extrairDataRecebimento(mensagemPayload) {
@@ -93,6 +116,14 @@ export async function executarAnaliseEDecidirNotificacao({ mensagem, contexto, g
 
   if (!decisao.notificar) {
     logger.debug("Análise não atingiu limiar de notificação", { motivo: decisao.motivo, analiseId: analiseDoc._id });
+    return { notificou: false };
+  }
+
+  if (await gatilhoAindaNoPrazoDeEspera(analise.resultado, contexto, grupo)) {
+    logger.debug("Gatilho requer tempo mínimo sem resposta — ainda não atingido", {
+      gatilho: analise.resultado.gatilho,
+      analiseId: analiseDoc._id
+    });
     return { notificou: false };
   }
 

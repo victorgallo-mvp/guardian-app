@@ -36,6 +36,12 @@ export function invalidarCacheEquipe() {
   jidsEquipeCache = { data: new Set(), expiraEm: 0, clientId: null };
 }
 
+/** Retorna o Set de JIDs da equipe + override do grupo (para uso externo ao pipeline). */
+export async function resolverJidsAgencia(clientId, membrosAgenciaGrupo = []) {
+  const equipe = await resolverJidsEquipe(clientId);
+  return new Set([...equipe, ...membrosAgenciaGrupo]);
+}
+
 /** Resolve os JIDs da equipe da agência via BD (com cache em memória). */
 async function resolverJidsEquipe(clientId) {
   const agora = Date.now();

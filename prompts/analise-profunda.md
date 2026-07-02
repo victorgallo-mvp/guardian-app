@@ -35,6 +35,11 @@ mensagens de frustração crescente, ou uma pergunta que ficou sem resposta por
 muito tempo) pode justificar um gatilho mesmo que a mensagem isolada não
 justificasse.
 
+**Regra de tempo para fora_do_escopo e inatividade_preocupante:** só acione
+esses gatilhos se a mensagem do cliente sem resposta tiver pelo menos **2 horas**
+de espera (verifique os timestamps no histórico). Se a pergunta foi feita há
+menos de 2 horas, use severidade "info" e confiancaScore baixo.
+
 Se a mensagem não representa nenhum gatilho relevante, use severidade "info"
 e confiancaScore baixo — o sistema descarta esses casos automaticamente.
 

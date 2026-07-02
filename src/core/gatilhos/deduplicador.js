@@ -15,7 +15,10 @@ const JANELA_DEDUPLICACAO_MINUTOS_PADRAO = 30;
 
 // Gatilhos tratados como equivalentes para dedup: se qualquer um do grupo disparou,
 // os outros são suprimidos. Evita notificações duplas para a mesma situação.
-const GRUPOS_EQUIVALENTES = [["fora_do_escopo", "inatividade_preocupante"]];
+const GRUPOS_EQUIVALENTES = [
+  ["fora_do_escopo", "inatividade_preocupante"],
+  ["urgencia_explicita", "pedido_humano"]
+];
 
 /**
  * Verifica se já existe uma notificação recente pro mesmo grupo + responsável + gatilho.

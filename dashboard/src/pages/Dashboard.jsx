@@ -93,8 +93,8 @@ function NotifRow({ n, onStatus }) {
             )}
             <span className="text-xs text-gray-300">·</span>
             <span className="text-xs text-gray-400">{formatarHora(n.enviadaEm)}</span>
-            {n.responsavelNome && (
-              <span className="text-xs text-gray-400">· {n.responsavelNome}</span>
+            {n.notificadosNomes?.length > 0 && (
+              <span className="text-xs text-gray-400">· {n.notificadosNomes.join(", ")}</span>
             )}
           </div>
           <p className={`text-sm text-gray-700 whitespace-pre-wrap ${aberta ? "" : "line-clamp-2"}`}>

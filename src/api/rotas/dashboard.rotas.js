@@ -85,6 +85,7 @@ router.get("/grupos-alertas", async (req, res) => {
     {
       $project: {
         grupoId: 1,
+        analiseId: 1,
         conteudoMensagem: 1,
         enviadaEm: 1,
         responsavelId: 1,
@@ -108,19 +109,30 @@ router.get("/grupos-alertas", async (req, res) => {
   ]);
   const mapUltimaMensagem = Object.fromEntries(ultimasMensagens.map((u) => [u._id.toString(), u.ultimaEm]));
 
-  // 4. Agrupa notificações por grupo
+  // 4. Agrupa notificações por grupo, deduplicando por analiseId
+  // (mesmo evento gera 1 notificação por responsável — exibimos como 1 card com lista de notificados)
   const notifPorGrupo = {};
   for (const n of notificacoesPendentes) {
     const gid = n.grupoId.toString();
-    if (!notifPorGrupo[gid]) notifPorGrupo[gid] = [];
-    notifPorGrupo[gid].push({
-      _id: n._id,
-      conteudoMensagem: n.conteudoMensagem,
-      enviadaEm: n.enviadaEm,
-      severidade: n.severidade ?? "info",
-      gatilho: n.gatilho ?? null,
-      responsavelNome: mapResp[n.responsavelId?.toString()] ?? null
-    });
+    const aid = n.analiseId?.toString() ?? n._id.toString();
+    if (!notifPorGrupo[gid]) notifPorGrupo[gid] = {};
+
+    if (!notifPorGrupo[gid][aid]) {
+      notifPorGrupo[gid][aid] = {
+        _id: n._id,          // id da primeira notif (usado para ações individuais)
+        analiseId: n.analiseId,
+        conteudoMensagem: n.conteudoMensagem,
+        enviadaEm: n.enviadaEm,
+        severidade: n.severidade ?? "info",
+        gatilho: n.gatilho ?? null,
+        notificadosIds: [],
+        notificadosNomes: []
+      };
+    }
+
+    const nome = mapResp[n.responsavelId?.toString()];
+    notifPorGrupo[gid][aid].notificadosIds.push(n._id);
+    if (nome) notifPorGrupo[gid][aid].notificadosNomes.push(nome);
   }
 
   // 5. Monta resultado
@@ -128,7 +140,7 @@ router.get("/grupos-alertas", async (req, res) => {
   const resultado = grupos
     .map((g) => {
       const gid = g._id.toString();
-      const notifs = notifPorGrupo[gid] ?? [];
+      const notifs = Object.values(notifPorGrupo[gid] ?? {});
       const severidades = notifs.map((n) => n.severidade);
       const ultimaMsgEm = mapUltimaMensagem[gid] ?? null;
       const emSnooze = g.pausadoAte && new Date(g.pausadoAte) > agora;

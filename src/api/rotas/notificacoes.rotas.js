@@ -34,19 +34,22 @@ router.get("/", async (req, res) => {
   res.json({ dados: resultado, total: gatilho ? resultado.length : total, pagina: Number(pagina), limite: Number(limite) });
 });
 
-// Atualiza status individual
+// Atualiza status individual — e todas as notifs do mesmo analiseId (demais responsáveis)
 router.patch("/:id/status", async (req, res) => {
   const { status } = req.body;
   if (!STATUS_PERMITIDOS.includes(status)) {
     return res.status(400).json({ erro: `Status inválido. Use: ${STATUS_PERMITIDOS.join(", ")}` });
   }
-  const notificacao = await Notificacao.findOneAndUpdate(
-    { _id: req.params.id, clientId: config.clientId },
-    { $set: { status } },
-    { new: true }
-  );
+  const notificacao = await Notificacao.findOne({ _id: req.params.id, clientId: config.clientId });
   if (!notificacao) return res.status(404).json({ erro: "Notificação não encontrada" });
-  res.json(notificacao);
+
+  // Atualiza todas as notificações do mesmo evento (mesmo analiseId = mesmos responsáveis)
+  await Notificacao.updateMany(
+    { clientId: config.clientId, analiseId: notificacao.analiseId },
+    { $set: { status } }
+  );
+
+  res.json({ ok: true, status });
 });
 
 // Ação em lote: atualiza todas as notificações enviadas de um grupo

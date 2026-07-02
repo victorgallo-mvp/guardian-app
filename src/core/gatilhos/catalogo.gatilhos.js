@@ -22,7 +22,7 @@ export const CATALOGO_GATILHOS = {
   },
   pedido_humano: {
     nome: "Pedido explícito de humano",
-    descricao: "Cliente pede pra falar com alguém específico ou responsável",
+    descricao: "Cliente solicita atendimento humano ou demonstra padrão de mensagens ignoradas por horas (múltiplas tentativas sem resposta). NÃO inclui @ mention isolada nem chamar alguém pelo nome em mensagem única.",
     severidadePadrao: "urgente",
     aplicavelEm: ["atendimento"]
   },

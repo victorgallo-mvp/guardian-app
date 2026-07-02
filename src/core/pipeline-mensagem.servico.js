@@ -24,7 +24,7 @@ import { enviarNotificacoes } from "./notificacao/enviador.servico.js";
 import { resolverJidsAgencia } from "./ia/construtor-prompt.js";
 
 // Gatilhos que só devem notificar se a mensagem do cliente está sem resposta há pelo menos N horas
-const GATILHOS_COM_DELAY_HORAS = { fora_do_escopo: 2, inatividade_preocupante: 2 };
+const GATILHOS_COM_DELAY_HORAS = { fora_do_escopo: 2, inatividade_preocupante: 2, pedido_humano: 2 };
 
 /**
  * Retorna true se o gatilho exige delay mínimo e esse tempo ainda não passou.

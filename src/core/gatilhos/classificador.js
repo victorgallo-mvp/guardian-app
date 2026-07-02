@@ -76,15 +76,20 @@ export function validarResultadoAnalise(resultadoBruto, tipoGrupo) {
  * Decide se uma análise validada deve gerar notificação, considerando:
  * - nível de sensibilidade efetivo do grupo (severidade mínima)
  * - confiança mínima da IA
- * - lista de gatilhos ativos do grupo (se configurada, restringe ainda mais)
+ * - blacklist global (cliente) e por grupo
  *
  * @param {object} analise - resultado validado por `validarResultadoAnalise`
  * @param {object} grupo - documento do grupo (Mongoose)
  * @param {string} nivelSensibilidadeEfetivo - "baixo" | "medio" | "alto"
+ * @param {string[]} gatilhosDesativadosGlobal - blacklist global do cliente
  */
-export function deveGerarNotificacao(analise, grupo, nivelSensibilidadeEfetivo) {
+export function deveGerarNotificacao(analise, grupo, nivelSensibilidadeEfetivo, gatilhosDesativadosGlobal = []) {
   if (analise.confiancaScore < CONFIANCA_MINIMA) {
     return { notificar: false, motivo: "Confiança da IA abaixo do mínimo aceitável" };
+  }
+
+  if (gatilhosDesativadosGlobal.includes(analise.gatilho)) {
+    return { notificar: false, motivo: "Gatilho desativado globalmente para este cliente" };
   }
 
   if (grupo.gatilhosDesativados?.includes(analise.gatilho)) {

@@ -45,6 +45,9 @@ const clienteSchema = new Schema(
 
     configuracoes: { type: configuracoesSchema, default: () => ({}) },
 
+    // Gatilhos desativados globalmente (blacklist, vale para todos os grupos)
+    gatilhosDesativados: { type: [String], default: [] },
+
     ativo: { type: Boolean, default: true }
   },
   { timestamps: { createdAt: "criadoEm", updatedAt: "atualizadoEm" } }

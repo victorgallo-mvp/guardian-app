@@ -13,6 +13,10 @@ import Analise from "../../dominio/analise.modelo.js";
 
 const JANELA_DEDUPLICACAO_MINUTOS_PADRAO = 30;
 
+// Gatilhos tratados como equivalentes para dedup: se qualquer um do grupo disparou,
+// os outros são suprimidos. Evita notificações duplas para a mesma situação.
+const GRUPOS_EQUIVALENTES = [["fora_do_escopo", "inatividade_preocupante"]];
+
 /**
  * Verifica se já existe uma notificação recente pro mesmo grupo + responsável + gatilho.
  *
@@ -33,5 +37,8 @@ export async function jaNotificadoRecentemente(grupoId, idGatilho, responsavelId
     .populate({ path: "analiseId", select: "detectado.gatilho", model: Analise })
     .lean();
 
-  return notificacoesRecentes.some((n) => n.analiseId?.detectado?.gatilho === idGatilho);
+  // Expande o gatilho para incluir equivalentes (ex: fora_do_escopo ↔ inatividade_preocupante)
+  const equivalentes = GRUPOS_EQUIVALENTES.find((g) => g.includes(idGatilho)) ?? [idGatilho];
+
+  return notificacoesRecentes.some((n) => equivalentes.includes(n.analiseId?.detectado?.gatilho));
 }

@@ -1,11 +1,12 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users2, Bell, UsersRound, LogOut, Shield } from "lucide-react";
+import { LayoutDashboard, Users2, Bell, UsersRound, LogOut, Shield, Settings } from "lucide-react";
 
 const nav = [
   { to: "/", icon: LayoutDashboard, label: "Visão Geral", end: true },
   { to: "/notificacoes", icon: Bell, label: "Notificações" },
   { to: "/grupos", icon: Users2, label: "Grupos" },
-  { to: "/equipe", icon: UsersRound, label: "Equipe" }
+  { to: "/equipe", icon: UsersRound, label: "Equipe" },
+  { to: "/configuracoes", icon: Settings, label: "Configurações" }
 ];
 
 export default function Layout() {

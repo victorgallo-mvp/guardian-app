@@ -9,6 +9,7 @@ import gruposApiRotas from "./rotas/grupos-api.rotas.js";
 import notificacoesRotas from "./rotas/notificacoes.rotas.js";
 import equipeRotas from "./rotas/equipe.rotas.js";
 import catalogoRotas from "./rotas/catalogo.rotas.js";
+import configRotas from "./rotas/config.rotas.js";
 import { tratadorErros } from "./middlewares/tratador-erros.middleware.js";
 
 const app = express();
@@ -30,6 +31,7 @@ app.use("/api/grupos", gruposApiRotas);
 app.use("/api/notificacoes", notificacoesRotas);
 app.use("/api/equipe", equipeRotas);
 app.use("/api/catalogo", catalogoRotas);
+app.use("/api/config", configRotas);
 
 app.use((req, res) => {
   res.status(404).json({ erro: "Rota não encontrada" });

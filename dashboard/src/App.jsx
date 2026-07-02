@@ -6,6 +6,7 @@ import Grupos from "./pages/Grupos.jsx";
 import GrupoDetalhe from "./pages/GrupoDetalhe.jsx";
 import Notificacoes from "./pages/Notificacoes.jsx";
 import Equipe from "./pages/Equipe.jsx";
+import Configuracoes from "./pages/Configuracoes.jsx";
 
 function RequireAuth({ children }) {
   const token = localStorage.getItem("guardiao_token");
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="grupos/:id" element={<GrupoDetalhe />} />
           <Route path="notificacoes" element={<Notificacoes />} />
           <Route path="equipe" element={<Equipe />} />
+          <Route path="configuracoes" element={<Configuracoes />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

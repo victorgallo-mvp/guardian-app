@@ -112,7 +112,9 @@ export async function executarAnaliseEDecidirNotificacao({ mensagem, contexto, g
   }
 
   const nivelSensibilidadeEfetivo = await obterNivelSensibilidadeEfetivo(grupo);
-  const decisao = deveGerarNotificacao(analise.resultado, grupo, nivelSensibilidadeEfetivo);
+  const cliente = await Cliente.findOne({ identificador: grupo.clientId }).select("gatilhosDesativados").lean();
+  const gatilhosDesativadosGlobal = cliente?.gatilhosDesativados ?? [];
+  const decisao = deveGerarNotificacao(analise.resultado, grupo, nivelSensibilidadeEfetivo, gatilhosDesativadosGlobal);
 
   if (!decisao.notificar) {
     logger.debug("Análise não atingiu limiar de notificação", { motivo: decisao.motivo, analiseId: analiseDoc._id });

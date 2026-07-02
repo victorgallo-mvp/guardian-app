@@ -50,7 +50,7 @@ const grupoSchema = new Schema(
 
     responsaveis: [{ type: Schema.Types.ObjectId, ref: "Responsavel" }],
 
-    gatilhosAtivos: { type: [String], default: [] },
+    gatilhosDesativados: { type: [String], default: [] },
 
     membrosAgencia: { type: [String], default: [] },
 

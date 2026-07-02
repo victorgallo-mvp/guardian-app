@@ -39,7 +39,7 @@ function extrairJson(texto) {
  * @returns {Promise<{valido: boolean, resultado?: object, motivo?: string, custoUsd: number, modeloUsado: string}>}
  */
 export async function executarAnalise({ mensagem, contexto, grupo }) {
-  const prompt = montarPromptAnalise({ mensagem, contexto, grupo });
+  const prompt = await montarPromptAnalise({ mensagem, contexto, grupo });
   const modeloUsado = config.anthropic.modeloAnalise;
 
   const resposta = await comRetry(

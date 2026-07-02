@@ -37,6 +37,11 @@ const esquemaEnv = z.object({
   LIMITE_CUSTO_DIARIO_USD: z.coerce.number().positive().default(5),
   ADMIN_TOKEN: z.string().min(8, "ADMIN_TOKEN deve ter pelo menos 8 caracteres"),
 
+  JWT_SECRET: z.string().min(16).optional(),
+  DASHBOARD_EMAIL: z.string().email().optional(),
+  DASHBOARD_SENHA: z.string().min(6).optional(),
+  CORS_ORIGIN: z.string().optional().default("*"),
+
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.string().default("info"),
@@ -96,6 +101,13 @@ const config = {
 
   admin: {
     token: env.ADMIN_TOKEN
+  },
+
+  dashboard: {
+    jwtSecret: env.JWT_SECRET ?? env.ADMIN_TOKEN,
+    email: env.DASHBOARD_EMAIL ?? "admin@guardiao.wpp",
+    senha: env.DASHBOARD_SENHA ?? env.ADMIN_TOKEN,
+    corsOrigin: env.CORS_ORIGIN
   },
 
   servidor: {

@@ -36,8 +36,15 @@ export async function processarFeedback({ notificacao, responsavel, tipoFeedback
     conteudoResposta
   });
 
+  const statusPorFeedback = {
+    relevante: "ciente",
+    falso_positivo: "ignorada",
+    snooze: "ciente",
+    comentario_livre: "ciente"
+  };
+
   notificacao.feedbackId = feedback._id;
-  notificacao.status = "respondida";
+  notificacao.status = statusPorFeedback[tipoFeedback] ?? "ciente";
   await notificacao.save();
 
   switch (tipoFeedback) {

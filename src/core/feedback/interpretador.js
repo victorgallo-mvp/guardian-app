@@ -55,7 +55,7 @@ export async function encontrarNotificacaoParaFeedback(remetenteJid) {
 
   const notificacao = await Notificacao.findOne({
     responsavelId: responsavel._id,
-    status: "enviada",
+    status: { $in: ["enviada", "ciente"] },
     enviadaEm: { $gte: desde }
   }).sort({ enviadaEm: -1 });
 

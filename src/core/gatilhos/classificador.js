@@ -87,8 +87,8 @@ export function deveGerarNotificacao(analise, grupo, nivelSensibilidadeEfetivo) 
     return { notificar: false, motivo: "Confiança da IA abaixo do mínimo aceitável" };
   }
 
-  if (grupo.gatilhosAtivos?.length && !grupo.gatilhosAtivos.includes(analise.gatilho)) {
-    return { notificar: false, motivo: "Gatilho não está na lista de gatilhos ativos do grupo" };
+  if (grupo.gatilhosDesativados?.includes(analise.gatilho)) {
+    return { notificar: false, motivo: "Gatilho está desativado para este grupo" };
   }
 
   const indiceSeveridade = NIVEIS_SEVERIDADE.indexOf(analise.severidade);

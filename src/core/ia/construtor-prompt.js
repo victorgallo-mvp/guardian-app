@@ -1,17 +1,10 @@
-/**
- * Construtor de prompts pra IA: carrega os templates de `/prompts` e
- * preenche com dados da mensagem, do contexto recente do grupo e do
- * próprio grupo.
- *
- * Templates ficam fora de `src/` propositalmente — permite ajustar o
- * tom/conteúdo dos prompts sem tocar em código.
- */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { obterGatilhosAplicaveis } from "../gatilhos/catalogo.gatilhos.js";
 import { truncar, formatarHora } from "../../shared/utils.js";
 import config from "../../config/index.js";
+import Funcionario from "../../dominio/funcionario.modelo.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIR_PROMPTS = path.join(__dirname, "../../../prompts");
@@ -19,6 +12,10 @@ const DIR_PROMPTS = path.join(__dirname, "../../../prompts");
 const TAMANHO_MAX_TEXTO_MENSAGEM = 500;
 
 const cacheTemplates = new Map();
+
+// Cache dos JIDs da equipe para não consultar o BD a cada mensagem
+let jidsEquipeCache = { data: new Set(), expiraEm: 0, clientId: null };
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 /** Carrega (com cache em memória) um template de `/prompts`. */
 function carregarTemplate(nomeArquivo) {
@@ -34,11 +31,32 @@ function preencherTemplate(template, valores) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, chave) => valores[chave] ?? "");
 }
 
-/** Constrói o Set de JIDs da equipe da agência (global + override do grupo). */
-function obterJidsAgencia(grupo) {
-  const global = config.clienteReferencia?.membrosEquipe ?? [];
-  const porGrupo = grupo?.membrosAgencia ?? [];
-  return new Set([...global, ...porGrupo]);
+/** Invalida o cache de JIDs da equipe (chamado quando um Funcionário é criado/editado). */
+export function invalidarCacheEquipe() {
+  jidsEquipeCache = { data: new Set(), expiraEm: 0, clientId: null };
+}
+
+/** Resolve os JIDs da equipe da agência via BD (com cache em memória). */
+async function resolverJidsEquipe(clientId) {
+  const agora = Date.now();
+  if (jidsEquipeCache.clientId === clientId && agora < jidsEquipeCache.expiraEm) {
+    return jidsEquipeCache.data;
+  }
+  const funcionarios = await Funcionario.find({ clientId, ativo: true }).select("whatsappJid").lean();
+  jidsEquipeCache = {
+    data: new Set(funcionarios.map((f) => f.whatsappJid).filter(Boolean)),
+    expiraEm: agora + CACHE_TTL_MS,
+    clientId
+  };
+  return jidsEquipeCache.data;
+}
+
+/** Constrói o Set de JIDs da equipe da agência (BD + override do grupo). */
+async function obterJidsAgencia(grupo) {
+  const clientId = grupo.clientId ?? config.clientId;
+  const equipe = await resolverJidsEquipe(clientId);
+  const porGrupo = new Set(grupo.membrosAgencia ?? []);
+  return new Set([...equipe, ...porGrupo]);
 }
 
 /** Formata as mensagens anteriores do contexto como uma lista legível pra IA, anotando agência vs cliente. */
@@ -62,9 +80,9 @@ function formatarParticipantes(jidsAgencia) {
 }
 
 /** Monta o prompt de triagem rápida (Haiku) para uma mensagem. */
-export function montarPromptTriagem({ mensagem, contexto, grupo }) {
+export async function montarPromptTriagem({ mensagem, contexto, grupo }) {
   const template = carregarTemplate("triagem-rapida.md");
-  const jidsAgencia = obterJidsAgencia(grupo);
+  const jidsAgencia = await obterJidsAgencia(grupo);
 
   return preencherTemplate(template, {
     tipoGrupo: grupo.tipo,
@@ -79,9 +97,9 @@ export function montarPromptTriagem({ mensagem, contexto, grupo }) {
 }
 
 /** Monta o prompt de análise profunda (Sonnet) para uma mensagem. */
-export function montarPromptAnalise({ mensagem, contexto, grupo }) {
+export async function montarPromptAnalise({ mensagem, contexto, grupo }) {
   const template = carregarTemplate("analise-profunda.md");
-  const jidsAgencia = obterJidsAgencia(grupo);
+  const jidsAgencia = await obterJidsAgencia(grupo);
 
   const gatilhosAplicaveis = obterGatilhosAplicaveis(grupo.tipo)
     .map((g) => `- "${g.id}" (severidade padrão: ${g.severidadePadrao}): ${g.nome} — ${g.descricao}`)

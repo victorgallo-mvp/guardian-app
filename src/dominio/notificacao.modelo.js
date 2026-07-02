@@ -20,7 +20,7 @@ const notificacaoSchema = new Schema(
     feedbackId: { type: Schema.Types.ObjectId, ref: "Feedback", default: null },
     status: {
       type: String,
-      enum: ["enviada", "respondida", "ignorada"],
+      enum: ["enviada", "ciente", "resolvida", "ignorada"],
       default: "enviada"
     }
   },

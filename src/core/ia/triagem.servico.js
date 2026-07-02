@@ -48,7 +48,7 @@ function extrairJson(texto) {
  * @returns {Promise<{precisaAtencao: boolean, confiancaScore: number, motivoBreve: string, custoUsd: number}>}
  */
 export async function executarTriagem({ mensagem, contexto, grupo }) {
-  const prompt = montarPromptTriagem({ mensagem, contexto, grupo });
+  const prompt = await montarPromptTriagem({ mensagem, contexto, grupo });
 
   const resposta = await comRetry(
     () =>

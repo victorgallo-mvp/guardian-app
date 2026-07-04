@@ -1,68 +1,133 @@
 /**
- * Job periódico: reavalia a mensagem mais recente de cada grupo monitorado
- * quando ela já ficou um tempo sem resposta e sem análise profunda.
+ * Job periódico: notifica responsáveis quando um cliente fica sem resposta
+ * por mais de HORAS_SEM_RESPOSTA horas.
  *
- * Gatilhos como "inatividade_preocupante" e "fora_do_escopo" dependem do
- * tempo decorrido, não de uma nova mensagem — sem este job, eles só
- * seriam detectados se alguém mandasse outra mensagem depois.
+ * Lógica direta — sem IA. A condição é determinística:
+ *   1. Última mensagem do grupo é de cliente (não agência)
+ *   2. Essa mensagem tem mais de HORAS_SEM_RESPOSTA e menos de HORAS_JANELA_MAXIMA
+ *   3. Nenhuma mensagem de agência foi enviada depois dela
+ *   4. Nenhuma notificação foi enviada para este grupo nas últimas HORAS_DEDUP
+ *
+ * Throttling e horário do responsável são verificados pelo enviador (podeEnviarNotificacao).
  */
 import Grupo from "../dominio/grupo.modelo.js";
 import Mensagem from "../dominio/mensagem.modelo.js";
+import Notificacao from "../dominio/notificacao.modelo.js";
+import Analise from "../dominio/analise.modelo.js";
+import Cliente from "../dominio/cliente.modelo.js";
 import logger from "../infra/logger.js";
-import { obterContextoRecente } from "../core/contexto/janela-rolante.servico.js";
-import { limiteDiarioExcedido } from "../core/ia/controle-custo.servico.js";
-import { executarAnaliseEDecidirNotificacao } from "../core/pipeline-mensagem.servico.js";
+import { resolverJidsAgencia } from "../core/ia/construtor-prompt.js";
+import { enviarNotificacoes } from "../core/notificacao/enviador.servico.js";
+import { grupoEmSnooze } from "../core/filtros/grupo-permitido.filtro.js";
+import config from "../config/index.js";
 
-const HORAS_SEM_RESPOSTA_LIMIAR = 2;
+const HORAS_SEM_RESPOSTA = 2;
 const HORAS_JANELA_MAXIMA = 24;
+const HORAS_DEDUP = 4;
 
-/**
- * Para cada grupo ativo, busca a última mensagem que:
- * - foi marcada na triagem como `precisaAtencao`
- * - ainda não recebeu análise profunda
- * - está há mais de `HORAS_SEM_RESPOSTA_LIMIAR` sem novas mensagens, mas
- *   dentro de `HORAS_JANELA_MAXIMA` (evita reprocessar histórico antigo)
- *
- * e roda a análise profunda + decisão de notificação sobre ela.
- */
 export async function verificarInatividade() {
   const agora = Date.now();
-  const desde = new Date(agora - HORAS_JANELA_MAXIMA * 60 * 60 * 1000);
-  const antesDe = new Date(agora - HORAS_SEM_RESPOSTA_LIMIAR * 60 * 60 * 1000);
+  const antesDe = new Date(agora - HORAS_SEM_RESPOSTA * 60 * 60 * 1000);
+  const desde   = new Date(agora - HORAS_JANELA_MAXIMA * 60 * 60 * 1000);
+  const dedupDesde = new Date(agora - HORAS_DEDUP * 60 * 60 * 1000);
 
-  const grupos = await Grupo.find({ ativo: true });
+  // Grupos internos não têm "cliente" esperando resposta
+  const grupos = await Grupo.find({ clientId: config.clientId, ativo: true, tipo: { $ne: "interno" } });
+
+  const cliente = await Cliente.findOne({ identificador: config.clientId }).select("gatilhosDesativados").lean();
+  const gatilhosDesativadosGlobal = cliente?.gatilhosDesativados ?? [];
+
+  if (gatilhosDesativadosGlobal.includes("fora_do_escopo")) {
+    logger.debug("Job inatividade: fora_do_escopo desativado globalmente, abortando");
+    return;
+  }
+
+  let totalNotificados = 0;
 
   for (const grupo of grupos) {
-    const ultimaMensagem = await Mensagem.findOne({
-      grupoId: grupo._id,
-      recebidaEm: { $gte: desde, $lte: antesDe },
-      analiseProfundaId: null,
-      "triagem.precisaAtencao": true
-    }).sort({ recebidaEm: -1 });
+    try {
+      if (grupoEmSnooze(grupo)) continue;
+      if (grupo.gatilhosDesativados?.includes("fora_do_escopo")) continue;
 
-    if (!ultimaMensagem) continue;
+      const jidsAgencia = await resolverJidsAgencia(grupo.clientId, grupo.membrosAgencia);
+      const jidsAgenciaArray = [...jidsAgencia];
 
-    if (await limiteDiarioExcedido(grupo.clientId)) {
-      logger.debug("Limite diário de custo atingido, pulando reavaliação de inatividade", {
-        grupoId: grupo._id
+      // Última mensagem de cliente no período de interesse
+      const ultimaMsgCliente = await Mensagem.findOne({
+        grupoId: grupo._id,
+        remetenteJid: { $nin: jidsAgenciaArray },
+        recebidaEm: { $gte: desde, $lte: antesDe }
+      })
+        .sort({ recebidaEm: -1 })
+        .lean();
+
+      if (!ultimaMsgCliente) continue;
+
+      // Agência respondeu depois dessa mensagem?
+      const respostaAgencia = await Mensagem.findOne({
+        grupoId: grupo._id,
+        remetenteJid: { $in: jidsAgenciaArray },
+        recebidaEm: { $gt: ultimaMsgCliente.recebidaEm }
+      }).lean();
+
+      if (respostaAgencia) continue;
+
+      // Já notificamos este grupo nas últimas HORAS_DEDUP?
+      const notifRecente = await Notificacao.findOne({
+        clientId: grupo.clientId,
+        grupoId: grupo._id,
+        enviadaEm: { $gte: dedupDesde }
+      }).lean();
+
+      if (notifRecente) continue;
+
+      const horasEsperando = Math.round(
+        (agora - new Date(ultimaMsgCliente.recebidaEm).getTime()) / (1000 * 60 * 60)
+      );
+
+      const analiseDoc = await Analise.create({
+        clientId: grupo.clientId,
+        grupoId: grupo._id,
+        mensagemId: ultimaMsgCliente._id,
+        contextoAnalisado: {
+          mensagemAtual: ultimaMsgCliente.conteudo ?? "",
+          mensagensAnteriores: [],
+          totalContexto: 0
+        },
+        detectado: {
+          gatilho: "fora_do_escopo",
+          severidade: "urgente",
+          confiancaScore: 0.9,
+          explicacao: `Cliente aguarda resposta há ${horasEsperando}h sem retorno da equipe.`,
+          citacoes: ultimaMsgCliente.conteudo ? [ultimaMsgCliente.conteudo.slice(0, 200)] : []
+        },
+        contextoDoCliente: `Última mensagem: "${(ultimaMsgCliente.conteudo ?? "").slice(0, 150)}"`,
+        recomendacaoAcao: "Responder o cliente o quanto antes para evitar insatisfação.",
+        modeloUsado: "job-inatividade",
+        custoTokensUsd: 0
       });
-      continue;
+
+      await enviarNotificacoes({ analiseDoc, grupo, mensagem: ultimaMsgCliente });
+      totalNotificados++;
+
+      logger.info("Job inatividade: notificação enviada", {
+        grupoId: grupo._id,
+        nomeGrupo: grupo.nomeGrupo,
+        horasEsperando,
+        mensagemId: ultimaMsgCliente._id
+      });
+    } catch (erro) {
+      logger.error("Job inatividade: erro ao processar grupo", {
+        grupoId: grupo._id,
+        erro: erro.message,
+        stack: erro.stack
+      });
     }
+  }
 
-    const contexto = await obterContextoRecente(grupo.clientId, grupo._id, {
-      excluirMensagemId: ultimaMensagem._id
-    });
-
-    const { notificou } = await executarAnaliseEDecidirNotificacao({
-      mensagem: ultimaMensagem,
-      contexto,
-      grupo
-    });
-
-    logger.info("Reavaliação de inatividade concluída", {
-      grupoId: grupo._id,
-      mensagemId: ultimaMensagem._id,
-      notificou
-    });
+  if (totalNotificados > 0) {
+    logger.info(`Job inatividade: ${totalNotificados} grupo(s) notificado(s) por ausência de resposta`);
+  } else {
+    logger.debug("Job inatividade: nenhum grupo com inatividade detectada");
   }
 }

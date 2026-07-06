@@ -8,7 +8,7 @@ function ModalFuncionario({ funcionario, onFechar, onSalvo }) {
   const [form, setForm] = useState({
     nome: funcionario?.nome ?? "",
     cargo: funcionario?.cargo ?? "",
-    whatsappJid: funcionario?.whatsappJid?.replace("@s.whatsapp.net", "") ?? ""
+    whatsappNumero: funcionario?.whatsappNumero ?? ""
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
@@ -19,9 +19,9 @@ function ModalFuncionario({ funcionario, onFechar, onSalvo }) {
     setErro("");
     try {
       if (editando) {
-        await api.put(`/equipe/${funcionario._id}`, form);
+        await api.put(`/equipe/${funcionario._id}`, { ...form });
       } else {
-        await api.post("/equipe", form);
+        await api.post("/equipe", { ...form });
       }
       onSalvo();
     } catch (err) {
@@ -70,16 +70,16 @@ function ModalFuncionario({ funcionario, onFechar, onSalvo }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              WhatsApp (número com DDI)
+              Número WhatsApp
             </label>
             <input
               className="input"
-              placeholder="5537998158843"
-              value={form.whatsappJid}
-              onChange={(e) => setForm({ ...form, whatsappJid: e.target.value })}
+              placeholder="37980886497"
+              value={form.whatsappNumero}
+              onChange={(e) => setForm({ ...form, whatsappNumero: e.target.value })}
             />
             <p className="text-xs text-gray-400 mt-1">
-              Sem espaços ou hífens. Ex: 5537998158843 (DDI + DDD + número)
+              DDD + número. O JID é resolvido automaticamente ao salvar.
             </p>
           </div>
 
@@ -154,11 +154,15 @@ export default function Equipe() {
                     <span className="badge bg-gray-100 text-gray-500">Inativo</span>
                   )}
                 </div>
-                {f.whatsappJid && (
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">
-                    {f.whatsappJid.replace("@s.whatsapp.net", "")}
-                  </p>
-                )}
+                <p className="text-xs mt-0.5 truncate">
+                  {f.whatsappNumero ? (
+                    f.whatsappJid
+                      ? <span className="text-gray-400">{f.whatsappNumero} · <span className="text-green-500">JID ✓</span></span>
+                      : <span className="text-orange-400">{f.whatsappNumero} · JID não resolvido</span>
+                  ) : (
+                    <span className="text-gray-300">Sem número</span>
+                  )}
+                </p>
               </div>
               <div className="flex items-center gap-1.5">
                 <button

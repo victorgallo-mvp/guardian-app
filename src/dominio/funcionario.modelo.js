@@ -7,6 +7,7 @@ const funcionarioSchema = new Schema(
     clientId: { type: String, required: true, index: true },
     nome: { type: String, required: true },
     cargo: { type: String, default: "" },
+    whatsappNumero: { type: String, default: null },
     whatsappJid: { type: String, default: null },
     ativo: { type: Boolean, default: true }
   },

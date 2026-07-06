@@ -48,6 +48,22 @@ async function resolverJidsEquipe(clientId) {
 }
 
 /**
+ * Evolution API envia números BR sem o dígito 9 obrigatório (12 dígitos).
+ * O sistema armazena com ele (13 dígitos). Gera ambas as variantes para o $or.
+ */
+function variantesNumero(numero) {
+  if (!numero) return [];
+  const nums = new Set([numero]);
+  if (numero.startsWith("55")) {
+    const ddd = numero.slice(2, 4);
+    const local = numero.slice(4);
+    if (local.length === 8) nums.add(`55${ddd}9${local}`);       // 12→13: adiciona 9
+    if (local.length === 9 && local[0] === "9") nums.add(`55${ddd}${local.slice(1)}`); // 13→12: remove 9
+  }
+  return [...nums];
+}
+
+/**
  * Determina se o remetente de uma mensagem é da agência, cruzando por JID @lid
  * ou por número de telefone (extraído de participantAlt). Auto-descobre o @lid
  * quando encontra match por número mas JID ainda não estava salvo.
@@ -55,7 +71,7 @@ async function resolverJidsEquipe(clientId) {
 export async function determinarIsAgencia(remetenteJid, remetenteNumero, clientId) {
   const $or = [];
   if (remetenteJid) $or.push({ whatsappJid: remetenteJid });
-  if (remetenteNumero) $or.push({ whatsappNumero: remetenteNumero });
+  if (remetenteNumero) $or.push({ whatsappNumero: { $in: variantesNumero(remetenteNumero) } });
   if (!$or.length) return false;
 
   const funcionario = await Funcionario.findOne({ clientId, ativo: true, $or }).lean();

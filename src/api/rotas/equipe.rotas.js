@@ -97,12 +97,8 @@ router.put("/:id", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
-  const funcionario = await Funcionario.findOneAndUpdate(
-    { _id: req.params.id, clientId: config.clientId },
-    { $set: { ativo: false } },
-    { new: true }
-  );
-  if (!funcionario) return res.status(404).json({ erro: "Funcionário não encontrado" });
+  const resultado = await Funcionario.deleteOne({ _id: req.params.id, clientId: config.clientId });
+  if (!resultado.deletedCount) return res.status(404).json({ erro: "Funcionário não encontrado" });
   invalidarCacheEquipe();
   res.json({ ok: true });
 });

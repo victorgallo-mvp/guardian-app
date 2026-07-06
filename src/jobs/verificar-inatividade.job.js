@@ -18,6 +18,7 @@ import Cliente from "../dominio/cliente.modelo.js";
 import logger from "../infra/logger.js";
 import { enviarNotificacoes } from "../core/notificacao/enviador.servico.js";
 import { grupoEmSnooze } from "../core/filtros/grupo-permitido.filtro.js";
+import { mensagemEncerraConversa } from "../core/filtros/encerra-conversa.filtro.js";
 import Funcionario from "../dominio/funcionario.modelo.js";
 import config from "../config/index.js";
 
@@ -63,6 +64,15 @@ export async function verificarInatividade() {
         .lean();
 
       if (!ultimaMsgCliente) continue;
+
+      // Última mensagem é agradecimento/confirmação que não exige resposta?
+      if (mensagemEncerraConversa(ultimaMsgCliente.conteudo)) {
+        logger.debug("Job inatividade: última mensagem do cliente encerra conversa, pulando", {
+          grupoId: grupo._id,
+          conteudo: ultimaMsgCliente.conteudo?.slice(0, 50)
+        });
+        continue;
+      }
 
       // Agência respondeu depois dessa mensagem?
       // Inclui mensagens antigas (isAgencia: null) verificando o JID diretamente.

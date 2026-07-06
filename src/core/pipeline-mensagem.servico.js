@@ -22,6 +22,7 @@ import { executarAnalise } from "./ia/analise.servico.js";
 import { deveGerarNotificacao } from "./gatilhos/classificador.js";
 import { enviarNotificacoes } from "./notificacao/enviador.servico.js";
 import { determinarIsAgencia } from "./ia/construtor-prompt.js";
+import { mensagemEncerraConversa } from "./filtros/encerra-conversa.filtro.js";
 
 // Gatilhos que só devem notificar se a mensagem do cliente está sem resposta há pelo menos N horas
 const GATILHOS_COM_DELAY_HORAS = { fora_do_escopo: 2, inatividade_preocupante: 2, pedido_humano: 2 };
@@ -35,7 +36,9 @@ async function gatilhoAindaNoPrazoDeEspera(analise, contexto) {
   if (!delayHoras) return false;
 
   const msgs = contexto.mensagensAnteriores ?? [];
-  const ultimaMsgCliente = [...msgs].reverse().find((m) => m.isAgencia !== true);
+  const ultimaMsgCliente = [...msgs].reverse().find(
+    (m) => m.isAgencia !== true && !mensagemEncerraConversa(m.conteudo)
+  );
   if (!ultimaMsgCliente) return true;
 
   const idadeHoras = (Date.now() - new Date(ultimaMsgCliente.recebidaEm).getTime()) / (1000 * 60 * 60);

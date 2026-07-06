@@ -27,6 +27,8 @@ const mensagemSchema = new Schema(
     idMensagemWhatsapp: { type: String, required: true, unique: true, index: true },
     remetenteJid: { type: String, required: true },
     remetenteNome: { type: String, default: "" },
+    remetenteNumero: { type: String, default: null }, // extraído de participantAlt (@s.whatsapp.net)
+    isAgencia: { type: Boolean, default: null },       // null = mensagem antiga sem classificação
 
     conteudo: { type: String, default: "" },
     tipoMensagem: {

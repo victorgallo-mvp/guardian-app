@@ -20,7 +20,6 @@ import {
   classificarTipoFeedback
 } from "../../core/feedback/interpretador.js";
 import { processarFeedback } from "../../core/feedback/aprendizado.servico.js";
-import { tentarDescobertaJid } from "../../core/equipe/descoberta-jid.servico.js";
 
 /**
  * Processa uma DM recebida de um responsável: tenta interpretá-la como
@@ -66,8 +65,6 @@ export async function processarEventoWebhook(payload) {
   if (!dados?.key?.remoteJid) return;
 
   if (ehGrupo(dados.key.remoteJid)) {
-    const remetenteJid = dados.key.participant ?? dados.key.remoteJid;
-    tentarDescobertaJid(remetenteJid).catch(() => {}); // fire-and-forget, não bloqueia o pipeline
     await processarMensagemDeGrupo(dados);
   } else {
     await processarMensagemDireta(dados);

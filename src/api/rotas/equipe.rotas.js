@@ -2,9 +2,7 @@ import { Router } from "express";
 import { autenticarJwt } from "../middlewares/auth-jwt.middleware.js";
 import Funcionario from "../../dominio/funcionario.modelo.js";
 import { invalidarCacheEquipe } from "../../core/ia/construtor-prompt.js";
-import { clienteEvolutionPadrao } from "../../infra/evolution-client.js";
 import config from "../../config/index.js";
-import logger from "../../infra/logger.js";
 
 const router = Router();
 router.use(autenticarJwt);
@@ -14,25 +12,6 @@ function normalizarNumero(numero) {
   const soDigitos = numero.replace(/\D/g, "");
   if (soDigitos.startsWith("55") && soDigitos.length >= 12) return soDigitos;
   return `55${soDigitos}`;
-}
-
-/**
- * Consulta a Evolution API para descobrir o JID real do número.
- * Retorna o JID (ex: "208808810954881@lid") ou null se não encontrado.
- */
-async function resolverJidViaEvolution(numero) {
-  try {
-    const resposta = await clienteEvolutionPadrao.post(
-      `/chat/whatsappNumbers/${config.evolution.instanceName}`,
-      { numbers: [numero] }
-    );
-    const contato = Array.isArray(resposta) ? resposta[0] : null;
-    if (contato?.exists && contato?.jid) return contato.jid;
-    return null;
-  } catch (erro) {
-    logger.warn("Não foi possível resolver JID via Evolution API", { numero, erro: erro.message });
-    return null;
-  }
 }
 
 router.get("/", async (req, res) => {
@@ -48,24 +27,18 @@ router.post("/", async (req, res) => {
   const { nome, cargo, whatsappNumero } = req.body;
   if (!nome) return res.status(400).json({ erro: "nome é obrigatório" });
 
-  let whatsappJid = null;
-  let numeroNormalizado = null;
-
-  if (whatsappNumero?.trim()) {
-    numeroNormalizado = normalizarNumero(whatsappNumero);
-    whatsappJid = await resolverJidViaEvolution(numeroNormalizado);
-  }
+  const numeroNormalizado = whatsappNumero?.trim() ? normalizarNumero(whatsappNumero) : null;
 
   const funcionario = await Funcionario.create({
     clientId: config.clientId,
     nome,
     cargo: cargo ?? "",
     whatsappNumero: numeroNormalizado,
-    whatsappJid
+    whatsappJid: null
   });
 
   invalidarCacheEquipe();
-  res.status(201).json({ ...funcionario.toObject(), jidResolvido: !!whatsappJid });
+  res.status(201).json(funcionario.toObject());
 });
 
 router.put("/:id", async (req, res) => {
@@ -78,7 +51,7 @@ router.put("/:id", async (req, res) => {
   if (whatsappNumero !== undefined) {
     if (whatsappNumero?.trim()) {
       atualizacao.whatsappNumero = normalizarNumero(whatsappNumero);
-      atualizacao.whatsappJid = await resolverJidViaEvolution(atualizacao.whatsappNumero);
+      atualizacao.whatsappJid = null; // auto-descoberto passivamente via webhook
     } else {
       atualizacao.whatsappNumero = null;
       atualizacao.whatsappJid = null;

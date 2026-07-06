@@ -16,7 +16,6 @@ import Notificacao from "../dominio/notificacao.modelo.js";
 import Analise from "../dominio/analise.modelo.js";
 import Cliente from "../dominio/cliente.modelo.js";
 import logger from "../infra/logger.js";
-import { resolverJidsAgencia } from "../core/ia/construtor-prompt.js";
 import { enviarNotificacoes } from "../core/notificacao/enviador.servico.js";
 import { grupoEmSnooze } from "../core/filtros/grupo-permitido.filtro.js";
 import config from "../config/index.js";
@@ -49,13 +48,10 @@ export async function verificarInatividade() {
       if (grupoEmSnooze(grupo)) continue;
       if (grupo.gatilhosDesativados?.includes("fora_do_escopo")) continue;
 
-      const jidsAgencia = await resolverJidsAgencia(grupo.clientId, grupo.membrosAgencia);
-      const jidsAgenciaArray = [...jidsAgencia];
-
       // Última mensagem de cliente no período de interesse
       const ultimaMsgCliente = await Mensagem.findOne({
         grupoId: grupo._id,
-        remetenteJid: { $nin: jidsAgenciaArray },
+        isAgencia: { $ne: true },
         recebidaEm: { $gte: desde, $lte: antesDe }
       })
         .sort({ recebidaEm: -1 })
@@ -66,7 +62,7 @@ export async function verificarInatividade() {
       // Agência respondeu depois dessa mensagem?
       const respostaAgencia = await Mensagem.findOne({
         grupoId: grupo._id,
-        remetenteJid: { $in: jidsAgenciaArray },
+        isAgencia: true,
         recebidaEm: { $gt: ultimaMsgCliente.recebidaEm }
       }).lean();
 

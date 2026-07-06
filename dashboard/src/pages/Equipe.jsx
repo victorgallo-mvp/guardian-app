@@ -155,10 +155,12 @@ export default function Equipe() {
                   )}
                 </div>
                 <p className="text-xs mt-0.5 truncate">
-                  {f.whatsappNumero ? (
-                    f.whatsappJid
-                      ? <span className="text-gray-400">{f.whatsappNumero} · <span className="text-green-500">JID ✓</span></span>
-                      : <span className="text-orange-400">{f.whatsappNumero} · JID não resolvido</span>
+                  {f.whatsappJid ? (
+                    <span className="text-gray-400">
+                      {f.whatsappNumero ?? "—"} · <span className="text-green-500">JID ✓</span>
+                    </span>
+                  ) : f.whatsappNumero ? (
+                    <span className="text-orange-400">{f.whatsappNumero} · JID pendente</span>
                   ) : (
                     <span className="text-gray-300">Sem número</span>
                   )}

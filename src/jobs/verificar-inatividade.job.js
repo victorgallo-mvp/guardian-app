@@ -18,6 +18,7 @@ import Cliente from "../dominio/cliente.modelo.js";
 import logger from "../infra/logger.js";
 import { enviarNotificacoes } from "../core/notificacao/enviador.servico.js";
 import { grupoEmSnooze } from "../core/filtros/grupo-permitido.filtro.js";
+import Funcionario from "../dominio/funcionario.modelo.js";
 import config from "../config/index.js";
 
 const HORAS_SEM_RESPOSTA = 2;
@@ -48,6 +49,10 @@ export async function verificarInatividade() {
       if (grupoEmSnooze(grupo)) continue;
       if (grupo.gatilhosDesativados?.includes("fora_do_escopo")) continue;
 
+      // JIDs conhecidos da equipe — necessário para checar mensagens antigas (isAgencia: null)
+      const funcionarios = await Funcionario.find({ clientId: grupo.clientId, ativo: true }).select("whatsappJid").lean();
+      const jidsEquipe = funcionarios.map((f) => f.whatsappJid).filter(Boolean);
+
       // Última mensagem de cliente no período de interesse
       const ultimaMsgCliente = await Mensagem.findOne({
         grupoId: grupo._id,
@@ -60,11 +65,11 @@ export async function verificarInatividade() {
       if (!ultimaMsgCliente) continue;
 
       // Agência respondeu depois dessa mensagem?
-      const respostaAgencia = await Mensagem.findOne({
-        grupoId: grupo._id,
-        isAgencia: true,
-        recebidaEm: { $gt: ultimaMsgCliente.recebidaEm }
-      }).lean();
+      // Inclui mensagens antigas (isAgencia: null) verificando o JID diretamente.
+      const filtroAgencia = jidsEquipe.length
+        ? { grupoId: grupo._id, $or: [{ isAgencia: true }, { isAgencia: null, remetenteJid: { $in: jidsEquipe } }], recebidaEm: { $gt: ultimaMsgCliente.recebidaEm } }
+        : { grupoId: grupo._id, isAgencia: true, recebidaEm: { $gt: ultimaMsgCliente.recebidaEm } };
+      const respostaAgencia = await Mensagem.findOne(filtroAgencia).lean();
 
       if (respostaAgencia) continue;
 

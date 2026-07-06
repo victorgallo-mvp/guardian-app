@@ -41,7 +41,7 @@ export async function obterContextoRecente(clientId, grupoId, opcoes = {}) {
   const mensagens = await Mensagem.find(filtro)
     .sort({ recebidaEm: -1 })
     .limit(tamanhoJanela)
-    .select("remetenteJid remetenteNome conteudo recebidaEm tipoMensagem")
+    .select("remetenteJid remetenteNome remetenteNumero isAgencia conteudo recebidaEm tipoMensagem")
     .lean();
 
   const mensagensAnteriores = mensagens.reverse();

@@ -185,6 +185,9 @@ export async function processarMensagemDeGrupo(mensagemPayload) {
 
   await registrarMensagemProcessada(grupo._id);
 
+  // Mensagens da agência atualizam o contexto mas não disparam análise de IA
+  if (isAgencia) return;
+
   if (await limiteDiarioExcedido(grupo.clientId)) {
     logger.warn("Limite diário de custo de IA atingido, mensagem armazenada sem análise", {
       clientId: grupo.clientId,

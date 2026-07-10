@@ -1,14 +1,18 @@
 /**
  * Job periódico: notifica responsáveis quando um cliente fica sem resposta
- * por mais de HORAS_SEM_RESPOSTA horas.
+ * por mais de HORAS_SEM_RESPOSTA horas ÚTEIS (dentro do expediente).
  *
  * Lógica direta — sem IA. A condição é determinística:
- *   1. Última mensagem do grupo é de cliente (não agência)
- *   2. Essa mensagem tem mais de HORAS_SEM_RESPOSTA e menos de HORAS_JANELA_MAXIMA
- *   3. Nenhuma mensagem de agência foi enviada depois dela
- *   4. Nenhuma notificação foi enviada para este grupo nas últimas HORAS_DEDUP
+ *   1. Hora atual está dentro do expediente (EXPEDIENTE_INICIO–EXPEDIENTE_FIM)
+ *   2. Última mensagem do grupo é de cliente (não agência)
+ *   3. Essa mensagem tem mais de HORAS_SEM_RESPOSTA horas úteis sem resposta
+ *   4. Nenhuma mensagem de agência foi enviada depois dela
+ *   5. Nenhuma notificação foi enviada para este grupo nas últimas HORAS_DEDUP
  *
- * Throttling e horário do responsável são verificados pelo enviador (podeEnviarNotificacao).
+ * Horas úteis: soma de tempo dentro da janela 7h–17h BRT, dia a dia.
+ * Mensagens enviadas fora do expediente só começam a contar a partir do
+ * próximo início de expediente — evitando alertas por mensagens noturnas
+ * que chegam logo após as 7h.
  */
 import Grupo from "../dominio/grupo.modelo.js";
 import Mensagem from "../dominio/mensagem.modelo.js";
@@ -22,14 +26,85 @@ import { mensagemEncerraConversa } from "../core/filtros/encerra-conversa.filtro
 import Funcionario from "../dominio/funcionario.modelo.js";
 import config from "../config/index.js";
 
-const HORAS_SEM_RESPOSTA = 2;
-const HORAS_JANELA_MAXIMA = 24;
-const HORAS_DEDUP = 4;
+const HORAS_SEM_RESPOSTA  = 2;
+const HORAS_JANELA_MAXIMA = 72;  // calendário — cobre fins de semana
+const HORAS_DEDUP         = 4;
+
+// Expediente em BRT (America/Sao_Paulo — sem DST desde 2019, sempre UTC-3)
+const TZ                = "America/Sao_Paulo";
+const EXPEDIENTE_INICIO = 7;   // inclusive
+const EXPEDIENTE_FIM    = 17;  // exclusive
+
+// ─── helpers de fuso ────────────────────────────────────────────────────────
+
+function partsBRT(date) {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hour12: false
+  }).formatToParts(date);
+  const g = (t) => p.find((x) => x.type === t)?.value ?? "00";
+  return { ano: g("year"), mes: g("month"), dia: g("day"), hora: Number(g("hour")) % 24 };
+}
+
+/** Hora atual em BRT (0–23). */
+function horaBRT(date = new Date()) {
+  return partsBRT(date).hora;
+}
+
+/**
+ * Retorna o timestamp do início do expediente (EXPEDIENTE_INICIO h BRT)
+ * no mesmo dia BRT de `date`.
+ */
+function inicioExpedienteDia(date) {
+  const { ano, mes, dia } = partsBRT(date);
+  // Brasil é UTC-3 fixo — o sufixo -03:00 é sempre correto
+  return new Date(`${ano}-${mes}-${dia}T${String(EXPEDIENTE_INICIO).padStart(2, "0")}:00:00-03:00`);
+}
+
+/**
+ * Horas úteis decorridas entre `from` e `to`, contando apenas os
+ * intervalos dentro de [EXPEDIENTE_INICIO, EXPEDIENTE_FIM) BRT.
+ *
+ * Ex.: mensagem às 22h → conta a partir das 7h do dia seguinte.
+ */
+function horasUteisDecorridas(from, to) {
+  if (to <= from) return 0;
+
+  const MS_HORA      = 60 * 60 * 1000;
+  const MS_DIA       = 24 * MS_HORA;
+  const HORAS_EXPEDI = EXPEDIENTE_FIM - EXPEDIENTE_INICIO;
+
+  let total     = 0;
+  let diaInicio = inicioExpedienteDia(from); // 7h BRT no dia de 'from'
+
+  while (diaInicio.getTime() < to.getTime()) {
+    // diaInicio é sempre às 7h BRT = 10h UTC → getDay() reflete o dia BRT correto
+    const diaSemana = diaInicio.getDay(); // 0=Dom, 6=Sáb
+    if (diaSemana !== 0 && diaSemana !== 6) {
+      const fimExpediente = new Date(diaInicio.getTime() + HORAS_EXPEDI * MS_HORA);
+      const inicio = Math.max(from.getTime(), diaInicio.getTime());
+      const fim    = Math.min(to.getTime(),   fimExpediente.getTime());
+      if (fim > inicio) total += (fim - inicio) / MS_HORA;
+    }
+    diaInicio = new Date(diaInicio.getTime() + MS_DIA);
+  }
+
+  return total;
+}
+
+// ─── job ────────────────────────────────────────────────────────────────────
 
 export async function verificarInatividade() {
-  const agora = Date.now();
-  const antesDe = new Date(agora - HORAS_SEM_RESPOSTA * 60 * 60 * 1000);
-  const desde   = new Date(agora - HORAS_JANELA_MAXIMA * 60 * 60 * 1000);
+  // Só notifica dentro do expediente
+  const horaAtual = horaBRT();
+  if (horaAtual < EXPEDIENTE_INICIO || horaAtual >= EXPEDIENTE_FIM) {
+    logger.debug("Job inatividade: fora do expediente, abortando", { horaAtual });
+    return;
+  }
+
+  const agora      = Date.now();
+  const desde      = new Date(agora - HORAS_JANELA_MAXIMA * 60 * 60 * 1000);
   const dedupDesde = new Date(agora - HORAS_DEDUP * 60 * 60 * 1000);
 
   // Grupos internos não têm "cliente" esperando resposta
@@ -54,16 +129,21 @@ export async function verificarInatividade() {
       const funcionarios = await Funcionario.find({ clientId: grupo.clientId, ativo: true }).select("whatsappJid").lean();
       const jidsEquipe = funcionarios.map((f) => f.whatsappJid).filter(Boolean);
 
-      // Última mensagem de cliente no período de interesse
+      // Última mensagem de cliente dentro da janela calendário
+      // (sem filtro de tempo mínimo — o check de horas úteis é feito em código)
       const ultimaMsgCliente = await Mensagem.findOne({
         grupoId: grupo._id,
         isAgencia: { $ne: true },
-        recebidaEm: { $gte: desde, $lte: antesDe }
+        recebidaEm: { $gte: desde }
       })
         .sort({ recebidaEm: -1 })
         .lean();
 
       if (!ultimaMsgCliente) continue;
+
+      // Horas úteis decorridas desde a última mensagem do cliente
+      const horasUteis = horasUteisDecorridas(new Date(ultimaMsgCliente.recebidaEm), new Date(agora));
+      if (horasUteis < HORAS_SEM_RESPOSTA) continue;
 
       // Última mensagem é agradecimento/confirmação que não exige resposta?
       if (mensagemEncerraConversa(ultimaMsgCliente.conteudo)) {
@@ -92,9 +172,7 @@ export async function verificarInatividade() {
 
       if (notifRecente) continue;
 
-      const horasEsperando = Math.round(
-        (agora - new Date(ultimaMsgCliente.recebidaEm).getTime()) / (1000 * 60 * 60)
-      );
+      const horasEsperando = Math.round(horasUteis);
 
       const analiseDoc = await Analise.create({
         clientId: grupo.clientId,
@@ -109,7 +187,7 @@ export async function verificarInatividade() {
           gatilho: "fora_do_escopo",
           severidade: "urgente",
           confiancaScore: 0.9,
-          explicacao: `Cliente aguarda resposta há ${horasEsperando}h sem retorno da equipe.`,
+          explicacao: `Cliente aguarda resposta há ${horasEsperando}h úteis sem retorno da equipe.`,
           citacoes: ultimaMsgCliente.conteudo ? [ultimaMsgCliente.conteudo.slice(0, 200)] : []
         },
         contextoDoCliente: `Última mensagem: "${(ultimaMsgCliente.conteudo ?? "").slice(0, 150)}"`,
@@ -124,7 +202,7 @@ export async function verificarInatividade() {
       logger.info("Job inatividade: notificação enviada", {
         grupoId: grupo._id,
         nomeGrupo: grupo.nomeGrupo,
-        horasEsperando,
+        horasUteis: horasEsperando,
         mensagemId: ultimaMsgCliente._id
       });
     } catch (erro) {

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import { autenticarJwt } from "../middlewares/auth-jwt.middleware.js";
 import Notificacao from "../../dominio/notificacao.modelo.js";
 import config from "../../config/index.js";
@@ -8,33 +9,93 @@ router.use(autenticarJwt);
 
 const STATUS_PERMITIDOS = ["enviada", "ciente", "resolvida", "ignorada"];
 
+/**
+ * Monta o pipeline base que agrupa notificações por analiseId.
+ * Cada alerta vira um documento único com lista de responsáveis notificados.
+ */
+function piplineBase({ matchInicial, gatilho }) {
+  return [
+    { $match: matchInicial },
+    {
+      $lookup: {
+        from: "analises",
+        localField: "analiseId",
+        foreignField: "_id",
+        as: "analise"
+      }
+    },
+    { $unwind: { path: "$analise", preserveNullAndEmptyArrays: true } },
+    ...(gatilho ? [{ $match: { "analise.detectado.gatilho": gatilho } }] : []),
+    {
+      $lookup: {
+        from: "responsavels",
+        localField: "responsavelId",
+        foreignField: "_id",
+        as: "responsavel"
+      }
+    },
+    { $unwind: { path: "$responsavel", preserveNullAndEmptyArrays: true } },
+    {
+      $group: {
+        _id: "$analiseId",
+        notifId: { $first: "$_id" },
+        grupoId: { $first: "$grupoId" },
+        gatilho: { $first: "$analise.detectado.gatilho" },
+        severidade: { $first: "$analise.detectado.severidade" },
+        conteudoMensagem: { $first: "$conteudoMensagem" },
+        enviadaEm: { $max: "$enviadaEm" },
+        status: { $first: "$status" },
+        notificadosNomes: { $addToSet: "$responsavel.nome" },
+        notificadosIds: { $push: "$_id" }
+      }
+    },
+    { $sort: { enviadaEm: -1 } },
+    {
+      $lookup: {
+        from: "grupos",
+        localField: "grupoId",
+        foreignField: "_id",
+        as: "grupo"
+      }
+    },
+    { $unwind: { path: "$grupo", preserveNullAndEmptyArrays: true } }
+  ];
+}
+
 router.get("/", async (req, res) => {
   const { grupoId, status, gatilho, pagina = 1, limite = 30 } = req.query;
-  const filtro = { clientId: config.clientId };
-  if (grupoId) filtro.grupoId = grupoId;
-  if (status) filtro.status = status;
-
   const skip = (Number(pagina) - 1) * Number(limite);
-  const [notificacoes, total] = await Promise.all([
-    Notificacao.find(filtro)
-      .populate("grupoId", "nomeGrupo tipo")
-      .populate("responsavelId", "nome whatsappNumero")
-      .populate({ path: "analiseId", select: "detectado mensagemId" })
-      .sort({ enviadaEm: -1 })
-      .skip(skip)
-      .limit(Number(limite))
-      .lean(),
-    Notificacao.countDocuments(filtro)
+
+  const matchInicial = { clientId: config.clientId };
+  if (grupoId) matchInicial.grupoId = new mongoose.Types.ObjectId(grupoId);
+  if (status) matchInicial.status = status;
+
+  const base = piplineBase({ matchInicial, gatilho });
+
+  const [contagem, dados] = await Promise.all([
+    Notificacao.aggregate([...base, { $count: "total" }]),
+    Notificacao.aggregate([...base, { $skip: skip }, { $limit: Number(limite) }])
   ]);
 
-  const resultado = gatilho
-    ? notificacoes.filter((n) => n.analiseId?.detectado?.gatilho === gatilho)
-    : notificacoes;
+  const total = contagem[0]?.total ?? 0;
 
-  res.json({ dados: resultado, total: gatilho ? resultado.length : total, pagina: Number(pagina), limite: Number(limite) });
+  const resultado = dados.map((n) => ({
+    _id: n.notifId,
+    analiseId: n._id,
+    grupoId: { _id: n.grupoId, nomeGrupo: n.grupo?.nomeGrupo, tipo: n.grupo?.tipo },
+    gatilho: n.gatilho ?? null,
+    severidade: n.severidade ?? null,
+    conteudoMensagem: n.conteudoMensagem,
+    enviadaEm: n.enviadaEm,
+    status: n.status,
+    notificadosNomes: n.notificadosNomes.filter(Boolean),
+    notificadosIds: n.notificadosIds
+  }));
+
+  res.json({ dados: resultado, total, pagina: Number(pagina), limite: Number(limite) });
 });
 
-// Atualiza status individual — e todas as notifs do mesmo analiseId (demais responsáveis)
+// Atualiza status — propaga pra todas as notifs do mesmo analiseId (demais responsáveis)
 router.patch("/:id/status", async (req, res) => {
   const { status } = req.body;
   if (!STATUS_PERMITIDOS.includes(status)) {
@@ -43,7 +104,6 @@ router.patch("/:id/status", async (req, res) => {
   const notificacao = await Notificacao.findOne({ _id: req.params.id, clientId: config.clientId });
   if (!notificacao) return res.status(404).json({ erro: "Notificação não encontrada" });
 
-  // Atualiza todas as notificações do mesmo evento (mesmo analiseId = mesmos responsáveis)
   await Notificacao.updateMany(
     { clientId: config.clientId, analiseId: notificacao.analiseId },
     { $set: { status } }

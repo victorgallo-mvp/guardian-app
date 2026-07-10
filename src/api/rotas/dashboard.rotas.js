@@ -28,33 +28,54 @@ router.get("/stats", async (req, res) => {
   const hoje = inicioDoDia();
   const clientId = config.clientId;
 
-  const [gruposAtivos, notificacoesHoje, notificacoesPendentes, topGruposRaw, porGatilhoRaw] =
-    await Promise.all([
-      Grupo.countDocuments({ clientId, ativo: true }),
-      Notificacao.countDocuments({ clientId, enviadaEm: { $gte: hoje } }),
-      Notificacao.countDocuments({ clientId, status: "enviada" }),
+  const [gruposAtivos, hojeRaw, pendentesRaw, topGruposRaw, porGatilhoRaw] = await Promise.all([
+    Grupo.countDocuments({ clientId, ativo: true }),
 
-      Notificacao.aggregate([
-        { $match: { clientId, enviadaEm: { $gte: hoje } } },
-        { $group: { _id: "$grupoId", total: { $sum: 1 } } },
-        { $sort: { total: -1 } },
-        { $limit: 5 },
-        { $lookup: { from: "grupos", localField: "_id", foreignField: "_id", as: "grupo" } },
-        { $unwind: "$grupo" },
-        { $project: { _id: 0, grupoId: "$_id", nomeGrupo: "$grupo.nomeGrupo", total: 1 } }
-      ]),
+    // Conta alertas únicos hoje (1 por analiseId, independente de quantos responsáveis foram notificados)
+    Notificacao.aggregate([
+      { $match: { clientId, enviadaEm: { $gte: hoje } } },
+      { $group: { _id: "$analiseId" } },
+      { $count: "total" }
+    ]),
 
-      Notificacao.aggregate([
-        { $match: { clientId, enviadaEm: { $gte: hoje } } },
-        { $lookup: { from: "analises", localField: "analiseId", foreignField: "_id", as: "analise" } },
-        { $unwind: { path: "$analise", preserveNullAndEmptyArrays: true } },
-        { $group: { _id: "$analise.detectado.gatilho", total: { $sum: 1 } } },
-        { $sort: { total: -1 } },
-        { $project: { _id: 0, gatilho: "$_id", total: 1 } }
-      ])
-    ]);
+    // Conta alertas pendentes únicos
+    Notificacao.aggregate([
+      { $match: { clientId, status: "enviada" } },
+      { $group: { _id: "$analiseId" } },
+      { $count: "total" }
+    ]),
 
-  res.json({ gruposAtivos, notificacoesHoje, notificacoesPendentes, topGrupos: topGruposRaw, porGatilho: porGatilhoRaw });
+    // Top grupos: conta alertas únicos por grupo
+    Notificacao.aggregate([
+      { $match: { clientId, enviadaEm: { $gte: hoje } } },
+      { $group: { _id: { grupoId: "$grupoId", analiseId: "$analiseId" } } },
+      { $group: { _id: "$_id.grupoId", total: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+      { $limit: 5 },
+      { $lookup: { from: "grupos", localField: "_id", foreignField: "_id", as: "grupo" } },
+      { $unwind: "$grupo" },
+      { $project: { _id: 0, grupoId: "$_id", nomeGrupo: "$grupo.nomeGrupo", total: 1 } }
+    ]),
+
+    // Por gatilho: conta alertas únicos por tipo
+    Notificacao.aggregate([
+      { $match: { clientId, enviadaEm: { $gte: hoje } } },
+      { $lookup: { from: "analises", localField: "analiseId", foreignField: "_id", as: "analise" } },
+      { $unwind: { path: "$analise", preserveNullAndEmptyArrays: true } },
+      { $group: { _id: { analiseId: "$analiseId", gatilho: "$analise.detectado.gatilho" } } },
+      { $group: { _id: "$_id.gatilho", total: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+      { $project: { _id: 0, gatilho: "$_id", total: 1 } }
+    ])
+  ]);
+
+  res.json({
+    gruposAtivos,
+    notificacoesHoje: hojeRaw[0]?.total ?? 0,
+    notificacoesPendentes: pendentesRaw[0]?.total ?? 0,
+    topGrupos: topGruposRaw,
+    porGatilho: porGatilhoRaw
+  });
 });
 
 // GET /api/dashboard/grupos-alertas — visão por grupo com notificações pendentes inline

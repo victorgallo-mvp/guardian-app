@@ -31,6 +31,7 @@ const esquemaEnv = z.object({
   EVOLUTION_API_URL: z.string().url("EVOLUTION_API_URL deve ser uma URL válida"),
   EVOLUTION_API_KEY: z.string().min(1, "EVOLUTION_API_KEY é obrigatório"),
   EVOLUTION_INSTANCE_NAME: z.string().min(1, "EVOLUTION_INSTANCE_NAME é obrigatório"),
+  NOTIFICACAO_GRUPO_JID: z.string().min(1, "NOTIFICACAO_GRUPO_JID é obrigatório"),
 
   CLIENT_ID: z.string().min(1, "CLIENT_ID é obrigatório"),
 
@@ -90,6 +91,10 @@ const config = {
     apiUrl: env.EVOLUTION_API_URL,
     apiKey: env.EVOLUTION_API_KEY,
     instanceName: env.EVOLUTION_INSTANCE_NAME
+  },
+
+  notificacao: {
+    grupoJid: env.NOTIFICACAO_GRUPO_JID
   },
 
   clientId: env.CLIENT_ID,

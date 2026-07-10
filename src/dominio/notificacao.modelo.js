@@ -10,7 +10,7 @@ const notificacaoSchema = new Schema(
     clientId: { type: String, required: true, index: true },
     grupoId: { type: Schema.Types.ObjectId, ref: "Grupo", required: true, index: true },
     analiseId: { type: Schema.Types.ObjectId, ref: "Analise", required: true },
-    responsavelId: { type: Schema.Types.ObjectId, ref: "Responsavel", required: true, index: true },
+    responsavelId: { type: Schema.Types.ObjectId, ref: "Responsavel", default: null, index: true },
 
     gatilho: { type: String, default: null, index: true },
     conteudoMensagem: { type: String, required: true },

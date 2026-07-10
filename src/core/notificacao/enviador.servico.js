@@ -76,6 +76,7 @@ export async function enviarNotificacoes({ analiseDoc, grupo, mensagem }) {
       grupoId: grupo._id,
       analiseId: analiseDoc._id,
       responsavelId: responsavel._id,
+      gatilho: analiseDoc.detectado?.gatilho ?? null,
       conteudoMensagem: texto,
       idMensagemEnviada
     });

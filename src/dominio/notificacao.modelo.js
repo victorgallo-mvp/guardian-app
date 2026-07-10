@@ -12,6 +12,7 @@ const notificacaoSchema = new Schema(
     analiseId: { type: Schema.Types.ObjectId, ref: "Analise", required: true },
     responsavelId: { type: Schema.Types.ObjectId, ref: "Responsavel", required: true, index: true },
 
+    gatilho: { type: String, default: null, index: true },
     conteudoMensagem: { type: String, required: true },
     idMensagemEnviada: { type: String, default: null },
 

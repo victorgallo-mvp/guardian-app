@@ -8,6 +8,7 @@
  */
 import Mensagem from "../dominio/mensagem.modelo.js";
 import Analise from "../dominio/analise.modelo.js";
+import Notificacao from "../dominio/notificacao.modelo.js";
 import Cliente from "../dominio/cliente.modelo.js";
 import config from "../config/index.js";
 import logger from "../infra/logger.js";
@@ -26,6 +27,10 @@ import { mensagemEncerraConversa } from "./filtros/encerra-conversa.filtro.js";
 
 // Gatilhos que só devem notificar se a mensagem do cliente está sem resposta há pelo menos N horas
 const GATILHOS_COM_DELAY_HORAS = { fora_do_escopo: 2, inatividade_preocupante: 2, pedido_humano: 2 };
+
+// Janela de dedup para alertas do pipeline em tempo real: evita spam quando o cliente
+// envia várias mensagens seguidas com o mesmo tipo de problema
+const HORAS_DEDUP_PIPELINE = 2;
 
 /**
  * Retorna true se o gatilho exige delay mínimo e esse tempo ainda não passou.
@@ -125,6 +130,22 @@ export async function executarAnaliseEDecidirNotificacao({ mensagem, contexto, g
     logger.debug("Gatilho requer tempo mínimo sem resposta — ainda não atingido", {
       gatilho: analise.resultado.gatilho,
       analiseId: analiseDoc._id
+    });
+    return { notificou: false };
+  }
+
+  const dedupDesde = new Date(Date.now() - HORAS_DEDUP_PIPELINE * 60 * 60 * 1000);
+  const notifRecenteGatilho = await Notificacao.findOne({
+    grupoId: grupo._id,
+    gatilho: analise.resultado.gatilho,
+    enviadaEm: { $gte: dedupDesde }
+  }).lean();
+
+  if (notifRecenteGatilho) {
+    logger.debug("Gatilho já notificado recentemente neste grupo, suprimindo", {
+      gatilho: analise.resultado.gatilho,
+      grupoId: grupo._id,
+      ultimaNotifEm: notifRecenteGatilho.enviadaEm
     });
     return { notificou: false };
   }

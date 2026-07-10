@@ -5,6 +5,8 @@ import { obterGatilhosAplicaveis } from "../gatilhos/catalogo.gatilhos.js";
 import { truncar, formatarHora } from "../../shared/utils.js";
 import config from "../../config/index.js";
 import Funcionario from "../../dominio/funcionario.modelo.js";
+import Cliente from "../../dominio/cliente.modelo.js";
+import Feedback from "../../dominio/feedback.modelo.js";
 import logger from "../../infra/logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +18,9 @@ const cacheTemplates = new Map();
 
 // Cache dos JIDs da equipe para classificação rápida nos prompts
 let jidsEquipeCache = { data: new Set(), expiraEm: 0, clientId: null };
+
+// Cache do treinamento personalizado do cliente
+let treinamentoCache = { data: null, expiraEm: 0, clientId: null };
 
 function carregarTemplate(nomeArquivo) {
   if (!cacheTemplates.has(nomeArquivo)) {
@@ -31,6 +36,40 @@ function preencherTemplate(template, valores) {
 
 export function invalidarCacheEquipe() {
   jidsEquipeCache = { data: new Set(), expiraEm: 0, clientId: null };
+}
+
+export function invalidarCacheTreinamento() {
+  treinamentoCache = { data: null, expiraEm: 0, clientId: null };
+}
+
+/**
+ * Retorna o treinamento personalizado do cliente: frases de encerramento,
+ * contexto injetado nos prompts e exemplos de falsos alertas recentes.
+ * Resultado cacheado por CACHE_TTL_MS.
+ */
+export async function obterTreinamento(clientId) {
+  const agora = Date.now();
+  if (treinamentoCache.clientId === clientId && agora < treinamentoCache.expiraEm) {
+    return treinamentoCache.data;
+  }
+
+  const [cliente, exemplosNegativos] = await Promise.all([
+    Cliente.findOne({ identificador: clientId }).select("treinamento").lean(),
+    Feedback.find({ clientId, tipo: "negativo" })
+      .sort({ criadoEm: -1 })
+      .limit(5)
+      .select("mensagemConteudo gatilho motivo")
+      .lean()
+  ]);
+
+  const data = {
+    frases: (cliente?.treinamento?.frasesEncerraConversa ?? []).map((f) => f.texto),
+    contexto: cliente?.treinamento?.contextoPersonalizado ?? null,
+    exemplosNegativos
+  };
+
+  treinamentoCache = { data, expiraEm: agora + CACHE_TTL_MS, clientId };
+  return data;
 }
 
 async function resolverJidsEquipe(clientId) {
@@ -117,14 +156,42 @@ async function obterJidsAgencia(grupo) {
   return new Set([...equipe, ...porGrupo]);
 }
 
+async function montarContextoAdicional(grupo) {
+  const clientId = grupo.clientId ?? config.clientId;
+  const treinamento = await obterTreinamento(clientId);
+
+  const partes = [grupo.configuracoesEspecificas?.contextoAdicional || null];
+
+  if (treinamento.contexto) {
+    partes.push(`[Personalização do cliente]\n${treinamento.contexto}`);
+  }
+
+  if (treinamento.exemplosNegativos?.length > 0) {
+    const linhas = treinamento.exemplosNegativos
+      .filter((e) => e.mensagemConteudo)
+      .map((e) => {
+        const msg = e.mensagemConteudo.slice(0, 100);
+        return e.motivo ? `- "${msg}" (${e.motivo})` : `- "${msg}"`;
+      });
+    if (linhas.length > 0) {
+      partes.push(`[Exemplos de mensagens que NÃO são alertas para este cliente]\n${linhas.join("\n")}`);
+    }
+  }
+
+  return partes.filter(Boolean).join("\n\n") || "(nenhum)";
+}
+
 export async function montarPromptTriagem({ mensagem, contexto, grupo }) {
   const template = carregarTemplate("triagem-rapida.md");
-  const jidsAgencia = await obterJidsAgencia(grupo);
+  const [jidsAgencia, contextoAdicional] = await Promise.all([
+    obterJidsAgencia(grupo),
+    montarContextoAdicional(grupo)
+  ]);
 
   return preencherTemplate(template, {
     tipoGrupo: grupo.tipo,
     nomeGrupo: grupo.nomeGrupo,
-    contextoAdicional: grupo.configuracoesEspecificas?.contextoAdicional || "(nenhum)",
+    contextoAdicional,
     participantes: formatarParticipantes(jidsAgencia.size > 0),
     mensagensAnteriores: formatarMensagensAnteriores(contexto?.mensagensAnteriores, jidsAgencia),
     remetente: mensagem.remetenteNome || mensagem.remetenteJid,
@@ -135,7 +202,10 @@ export async function montarPromptTriagem({ mensagem, contexto, grupo }) {
 
 export async function montarPromptAnalise({ mensagem, contexto, grupo }) {
   const template = carregarTemplate("analise-profunda.md");
-  const jidsAgencia = await obterJidsAgencia(grupo);
+  const [jidsAgencia, contextoAdicional] = await Promise.all([
+    obterJidsAgencia(grupo),
+    montarContextoAdicional(grupo)
+  ]);
 
   const gatilhosAplicaveis = obterGatilhosAplicaveis(grupo.tipo)
     .map((g) => `- "${g.id}" (severidade padrão: ${g.severidadePadrao}): ${g.nome} — ${g.descricao}`)
@@ -144,7 +214,7 @@ export async function montarPromptAnalise({ mensagem, contexto, grupo }) {
   return preencherTemplate(template, {
     tipoGrupo: grupo.tipo,
     nomeGrupo: grupo.nomeGrupo,
-    contextoAdicional: grupo.configuracoesEspecificas?.contextoAdicional || "(nenhum)",
+    contextoAdicional,
     participantes: formatarParticipantes(jidsAgencia.size > 0),
     gatilhosAplicaveis,
     mensagensAnteriores: formatarMensagensAnteriores(contexto?.mensagensAnteriores, jidsAgencia),

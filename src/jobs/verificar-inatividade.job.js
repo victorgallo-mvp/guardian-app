@@ -23,6 +23,7 @@ import logger from "../infra/logger.js";
 import { enviarNotificacoes } from "../core/notificacao/enviador.servico.js";
 import { grupoEmSnooze } from "../core/filtros/grupo-permitido.filtro.js";
 import { mensagemEncerraConversa } from "../core/filtros/encerra-conversa.filtro.js";
+import { obterTreinamento } from "../core/ia/construtor-prompt.js";
 import Funcionario from "../dominio/funcionario.modelo.js";
 import config from "../config/index.js";
 
@@ -118,6 +119,7 @@ export async function verificarInatividade() {
     return;
   }
 
+  const { frases: frasesEncerraConversa } = await obterTreinamento(config.clientId);
   let totalNotificados = 0;
 
   for (const grupo of grupos) {
@@ -146,7 +148,7 @@ export async function verificarInatividade() {
       if (horasUteis < HORAS_SEM_RESPOSTA) continue;
 
       // Última mensagem é agradecimento/confirmação que não exige resposta?
-      if (mensagemEncerraConversa(ultimaMsgCliente.conteudo)) {
+      if (mensagemEncerraConversa(ultimaMsgCliente.conteudo, frasesEncerraConversa)) {
         logger.debug("Job inatividade: última mensagem do cliente encerra conversa, pulando", {
           grupoId: grupo._id,
           conteudo: ultimaMsgCliente.conteudo?.slice(0, 50)

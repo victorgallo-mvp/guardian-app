@@ -22,7 +22,7 @@ import { executarTriagem } from "./ia/triagem.servico.js";
 import { executarAnalise } from "./ia/analise.servico.js";
 import { deveGerarNotificacao } from "./gatilhos/classificador.js";
 import { enviarNotificacoes } from "./notificacao/enviador.servico.js";
-import { determinarIsAgencia } from "./ia/construtor-prompt.js";
+import { determinarIsAgencia, obterTreinamento } from "./ia/construtor-prompt.js";
 import { mensagemEncerraConversa } from "./filtros/encerra-conversa.filtro.js";
 
 // Gatilhos que só devem notificar se a mensagem do cliente está sem resposta há pelo menos N horas
@@ -36,13 +36,14 @@ const HORAS_DEDUP_PIPELINE = 2;
  * Retorna true se o gatilho exige delay mínimo e esse tempo ainda não passou.
  * Usa isAgencia salvo na mensagem (com fallback para null = cliente).
  */
-async function gatilhoAindaNoPrazoDeEspera(analise, contexto) {
+async function gatilhoAindaNoPrazoDeEspera(analise, contexto, grupo) {
   const delayHoras = GATILHOS_COM_DELAY_HORAS[analise.gatilho];
   if (!delayHoras) return false;
 
+  const { frases } = await obterTreinamento(grupo.clientId);
   const msgs = contexto.mensagensAnteriores ?? [];
   const ultimaMsgCliente = [...msgs].reverse().find(
-    (m) => m.isAgencia !== true && !mensagemEncerraConversa(m.conteudo)
+    (m) => m.isAgencia !== true && !mensagemEncerraConversa(m.conteudo, frases)
   );
   if (!ultimaMsgCliente) return true;
 
@@ -126,7 +127,7 @@ export async function executarAnaliseEDecidirNotificacao({ mensagem, contexto, g
     return { notificou: false };
   }
 
-  if (await gatilhoAindaNoPrazoDeEspera(analise.resultado, contexto)) {
+  if (await gatilhoAindaNoPrazoDeEspera(analise.resultado, contexto, grupo)) {
     logger.debug("Gatilho requer tempo mínimo sem resposta — ainda não atingido", {
       gatilho: analise.resultado.gatilho,
       analiseId: analiseDoc._id

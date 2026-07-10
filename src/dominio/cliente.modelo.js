@@ -48,6 +48,20 @@ const clienteSchema = new Schema(
     // Gatilhos desativados globalmente (blacklist, vale para todos os grupos)
     gatilhosDesativados: { type: [String], default: [] },
 
+    // Treinamento personalizado: frases de encerramento e contexto injetado nos prompts
+    treinamento: {
+      frasesEncerraConversa: {
+        type: [
+          new Schema(
+            { texto: { type: String, required: true, maxlength: 150 } },
+            { timestamps: { createdAt: "criadoEm", updatedAt: false } }
+          )
+        ],
+        default: []
+      },
+      contextoPersonalizado: { type: String, default: null, maxlength: 800 }
+    },
+
     ativo: { type: Boolean, default: true }
   },
   { timestamps: { createdAt: "criadoEm", updatedAt: "atualizadoEm" } }

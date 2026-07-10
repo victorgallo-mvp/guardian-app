@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   Users2, Bell, AlertCircle, CheckCircle2,
   Eye, XCircle, Search, TrendingDown,
-  Flame, Zap, Clock
+  Flame, Zap, Clock, ThumbsUp, ThumbsDown
 } from "lucide-react";
 import { useApi } from "../hooks/useApi.js";
 import { api } from "../api/client.js";
@@ -106,7 +106,21 @@ function StatCard({ icon: Icon, label, value, cor }) {
   );
 }
 
-function AlertCard({ n, onStatus, corBorda }) {
+function AlertCard({ n, onStatus, onFeedback, corBorda }) {
+  const [feedbackDado, setFeedbackDado] = useState(null);
+  const [mostrarMotivo, setMostrarMotivo] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [enviandoFeedback, setEnviandoFeedback] = useState(false);
+
+  async function handleFeedback(tipo, motivoTexto = "") {
+    setEnviandoFeedback(true);
+    await onFeedback(n._id, tipo, motivoTexto);
+    setFeedbackDado(tipo);
+    setMostrarMotivo(false);
+    setMotivo("");
+    setEnviandoFeedback(false);
+  }
+
   return (
     <div className={`bg-white rounded-xl border border-gray-100 border-l-4 ${corBorda} shadow-sm p-4 flex flex-col gap-2`}>
       {/* Grupo */}
@@ -124,30 +138,76 @@ function AlertCard({ n, onStatus, corBorda }) {
         {n.conteudoMensagem}
       </p>
 
+      {/* Input de motivo (👎) */}
+      {mostrarMotivo && (
+        <div className="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
+          <p className="text-xs text-gray-500">Por que este alerta foi incorreto? (opcional)</p>
+          <textarea
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            maxLength={200}
+            rows={2}
+            placeholder="Ex: cliente sempre fecha assim, não é urgente..."
+            className="input text-xs resize-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleFeedback("negativo", motivo)}
+              disabled={enviandoFeedback}
+              className="btn-primary text-xs py-1 px-3"
+            >
+              Enviar
+            </button>
+            <button
+              onClick={() => setMostrarMotivo(false)}
+              className="btn-secondary text-xs py-1 px-3"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Rodapé */}
       <div className="flex items-center justify-between pt-1">
         <span className="text-xs text-gray-400">{tempo(n.enviadaEm)}</span>
 
         <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => onStatus(n._id, "ciente")}
-            title="Ciente"
-            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-          >
+          {/* Feedback */}
+          {feedbackDado ? (
+            <span className="text-xs text-gray-400 mr-1">
+              {feedbackDado === "positivo" ? "👍 Registrado" : "👎 Registrado"}
+            </span>
+          ) : (
+            <>
+              <button
+                onClick={() => handleFeedback("positivo")}
+                title="Alerta correto"
+                className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg transition-colors"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => { setMostrarMotivo(true); setMotivo(""); }}
+                title="Falso alerta"
+                className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <ThumbsDown className="w-3.5 h-3.5" />
+              </button>
+              <span className="w-px h-4 bg-gray-200 mx-0.5" />
+            </>
+          )}
+          {/* Status */}
+          <button onClick={() => onStatus(n._id, "ciente")} title="Ciente"
+            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
             <Eye className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => onStatus(n._id, "resolvida")}
-            title="Resolvida"
-            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-          >
+          <button onClick={() => onStatus(n._id, "resolvida")} title="Resolvida"
+            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
             <CheckCircle2 className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => onStatus(n._id, "ignorada")}
-            title="Ignorar"
-            className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"
-          >
+          <button onClick={() => onStatus(n._id, "ignorada")} title="Ignorar"
+            className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
             <XCircle className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -156,7 +216,7 @@ function AlertCard({ n, onStatus, corBorda }) {
   );
 }
 
-function ColunaKanban({ coluna, alertas, onStatus }) {
+function ColunaKanban({ coluna, alertas, onStatus, onFeedback }) {
   const { icone: Icone, titulo, cor } = coluna;
   const vazia = alertas.length === 0;
 
@@ -184,7 +244,7 @@ function ColunaKanban({ coluna, alertas, onStatus }) {
           </div>
         ) : (
           alertas.map((n) => (
-            <AlertCard key={n._id} n={n} onStatus={onStatus} corBorda={cor.borda} />
+            <AlertCard key={n._id} n={n} onStatus={onStatus} onFeedback={onFeedback} corBorda={cor.borda} />
           ))
         )}
       </div>
@@ -223,6 +283,10 @@ export default function Dashboard() {
   async function atualizarStatus(id, status) {
     await api.patch(`/notificacoes/${id}/status`, { status });
     recarregar();
+  }
+
+  async function darFeedback(notificacaoId, tipo, motivo) {
+    await api.post("/feedback", { notificacaoId, tipo, motivo: motivo || undefined });
   }
 
   const totalPendentes = alertas.length;
@@ -278,6 +342,7 @@ export default function Dashboard() {
               coluna={col}
               alertas={alertasPorColuna[col.id] ?? []}
               onStatus={atualizarStatus}
+              onFeedback={darFeedback}
             />
           ))}
         </div>

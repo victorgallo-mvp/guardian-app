@@ -1,29 +1,22 @@
-/**
- * Modelo Feedback: resposta do responsável a uma notificação.
- *
- * Alimenta o loop de aprendizado (ver core/feedback/aprendizado.servico.js)
- * que ajusta estatísticas do grupo e, futuramente, calibra os prompts.
- */
 import mongoose from "mongoose";
 
 const { Schema } = mongoose;
 
 const feedbackSchema = new Schema(
   {
-    clientId: { type: String, required: true, index: true },
-    notificacaoId: { type: Schema.Types.ObjectId, ref: "Notificacao", required: true, index: true },
-    responsavelId: { type: Schema.Types.ObjectId, ref: "Responsavel", required: true },
-
-    tipoFeedback: {
-      type: String,
-      enum: ["relevante", "falso_positivo", "snooze", "comentario_livre"],
-      required: true
-    },
-    conteudoResposta: { type: String, default: "" },
-
-    recebidoEm: { type: Date, default: Date.now }
+    clientId:         { type: String, required: true, index: true },
+    grupoId:          { type: Schema.Types.ObjectId, ref: "Grupo", required: true },
+    notificacaoId:    { type: Schema.Types.ObjectId, ref: "Notificacao", required: true },
+    analiseId:        { type: Schema.Types.ObjectId, ref: "Analise", index: true },
+    gatilho:          { type: String, default: null },
+    tipo:             { type: String, enum: ["positivo", "negativo"], required: true },
+    motivo:           { type: String, default: null, maxlength: 200 },
+    mensagemConteudo: { type: String, default: null },
+    criadoEm:         { type: Date, default: Date.now }
   },
   { timestamps: false }
 );
+
+feedbackSchema.index({ clientId: 1, criadoEm: -1 });
 
 export default mongoose.model("Feedback", feedbackSchema);

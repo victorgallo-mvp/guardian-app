@@ -58,13 +58,25 @@ function normalizar(texto) {
 
 /**
  * Retorna true se a mensagem encerra a conversa e não exige resposta da agência.
+ *
+ * @param {string} texto
+ * @param {string[]} [frasesCustomizadas] - frases específicas do cliente (match parcial, sem limite de tamanho)
  */
-export function mensagemEncerraConversa(texto) {
+export function mensagemEncerraConversa(texto, frasesCustomizadas = []) {
   if (!texto) return false;
-  if (texto.length > MAX_CHARS) return false;
 
   const normalizado = normalizar(texto);
   if (!normalizado) return false;
 
+  // Frases customizadas do cliente — match parcial, sem restrição de tamanho
+  if (frasesCustomizadas.length > 0) {
+    if (frasesCustomizadas.some((f) => {
+      const normF = normalizar(f);
+      return normF && normalizado.includes(normF);
+    })) return true;
+  }
+
+  // Padrões genéricos — só para mensagens curtas
+  if (texto.length > MAX_CHARS) return false;
   return PADROES.some((p) => p.test(normalizado));
 }

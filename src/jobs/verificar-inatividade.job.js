@@ -29,7 +29,6 @@ import config from "../config/index.js";
 
 const HORAS_SEM_RESPOSTA  = 2;
 const HORAS_JANELA_MAXIMA = 72;  // calendário — cobre fins de semana
-const HORAS_DEDUP         = 4;
 
 // Expediente em BRT (America/Sao_Paulo — sem DST desde 2019, sempre UTC-3)
 const TZ                = "America/Sao_Paulo";
@@ -51,6 +50,18 @@ function partsBRT(date) {
 /** Hora atual em BRT (0–23). */
 function horaBRT(date = new Date()) {
   return partsBRT(date).hora;
+}
+
+/** Retorna true se a data for sábado (6) ou domingo (0) em BRT. */
+function ehFimDeSemanaBRT(date = new Date()) {
+  const dia = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "long" }).format(date);
+  return dia === "Saturday" || dia === "Sunday";
+}
+
+/** Retorna true se o texto contém apenas emojis e espaços (sem texto alfabético). */
+function somenteEmojis(texto) {
+  if (!texto?.trim()) return false;
+  return texto.replace(/\p{Emoji_Presentation}/gu, "").trim().length === 0;
 }
 
 /**
@@ -97,16 +108,19 @@ function horasUteisDecorridas(from, to) {
 // ─── job ────────────────────────────────────────────────────────────────────
 
 export async function verificarInatividade() {
-  // Só notifica dentro do expediente
-  const horaAtual = horaBRT();
+  // Só notifica em dias úteis dentro do expediente
+  const agora = new Date();
+  if (ehFimDeSemanaBRT(agora)) {
+    logger.debug("Job inatividade: fim de semana, abortando");
+    return;
+  }
+  const horaAtual = horaBRT(agora);
   if (horaAtual < EXPEDIENTE_INICIO || horaAtual >= EXPEDIENTE_FIM) {
     logger.debug("Job inatividade: fora do expediente, abortando", { horaAtual });
     return;
   }
 
-  const agora      = Date.now();
-  const desde      = new Date(agora - HORAS_JANELA_MAXIMA * 60 * 60 * 1000);
-  const dedupDesde = new Date(agora - HORAS_DEDUP * 60 * 60 * 1000);
+  const desde = new Date(agora.getTime() - HORAS_JANELA_MAXIMA * 60 * 60 * 1000);
 
   // Grupos internos não têm "cliente" esperando resposta
   const grupos = await Grupo.find({ clientId: config.clientId, ativo: true, tipo: { $ne: "interno" } });
@@ -147,6 +161,15 @@ export async function verificarInatividade() {
       const horasUteis = horasUteisDecorridas(new Date(ultimaMsgCliente.recebidaEm), new Date(agora));
       if (horasUteis < HORAS_SEM_RESPOSTA) continue;
 
+      // Mensagem composta só de emojis não exige resposta
+      if (somenteEmojis(ultimaMsgCliente.conteudo)) {
+        logger.debug("Job inatividade: última mensagem é só emoji, pulando", {
+          grupoId: grupo._id,
+          conteudo: ultimaMsgCliente.conteudo
+        });
+        continue;
+      }
+
       // Última mensagem é agradecimento/confirmação que não exige resposta?
       if (mensagemEncerraConversa(ultimaMsgCliente.conteudo, frasesEncerraConversa)) {
         logger.debug("Job inatividade: última mensagem do cliente encerra conversa, pulando", {
@@ -165,14 +188,14 @@ export async function verificarInatividade() {
 
       if (respostaAgencia) continue;
 
-      // Já notificamos este grupo nas últimas HORAS_DEDUP?
-      const notifRecente = await Notificacao.findOne({
-        clientId: grupo.clientId,
+      // Já notificamos este grupo desde que essa mensagem do cliente chegou?
+      // Uma notificação por evento — só reseta quando o cliente mandar nova mensagem.
+      const jaNotificado = await Notificacao.findOne({
         grupoId: grupo._id,
-        enviadaEm: { $gte: dedupDesde }
+        enviadaEm: { $gte: ultimaMsgCliente.recebidaEm }
       }).lean();
 
-      if (notifRecente) continue;
+      if (jaNotificado) continue;
 
       const horasEsperando = Math.round(horasUteis);
 

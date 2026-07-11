@@ -27,6 +27,14 @@ const PADROES = [
   /^top[.!]?$/,
   /^sim[.!]?$/,
   /^nao[.!]?$/,
+  /^isso[.!]?$/,
+  /^isso mesmo[.!]?$/,
+  /^claro[.!]?$/,
+  /^blz[.!]?$/,
+  /^beleza[.!]?$/,
+  /^ta[.!]?$/,
+  /^ta bom[.!]?$/,
+  /^pode ser[.!]?$/,
 
   // Agradecimentos (aceita "obrigado por tudo", "valeu demais" etc. — curtos)
   /^obrigad[ao]/,
@@ -43,8 +51,11 @@ const PADROES = [
   /^falou[.!]?$/,
   /^abraco[s]?[.!]?$/,
 
-  // Emojis/reações isoladas
-  /^[\u{1F44D}\u{1F44F}\u{1F64F}\u{2764}\u{2705}\u{1F44C}\u{1F60A}\u{1F609}\u{1F600}]+$/u,
+  // Promessas de contato (cliente vai ligar — não exige resposta da agência)
+  /^(vou ligar|te ligo|me liga|ligo pra voce|ligo hoje)/,
+
+  // Qualquer mensagem composta só de emojis
+  /^[\p{Emoji_Presentation}\s]+$/u,
 ];
 
 function normalizar(texto) {

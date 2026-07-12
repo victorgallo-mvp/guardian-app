@@ -112,17 +112,20 @@ router.patch("/:id/status", async (req, res) => {
   res.json({ ok: true, status });
 });
 
-// Ação em lote: atualiza todas as notificações enviadas de um grupo
+// Ação em lote: atualiza notificações enviadas
+// - { status } apenas            → todas do cliente (global)
+// - { gatilhos: [...], status }  → por tipo de alerta (coluna)
+// - { grupoId, status }          → por grupo (compatibilidade)
 router.patch("/lote", async (req, res) => {
-  const { grupoId, status } = req.body;
-  if (!grupoId) return res.status(400).json({ erro: "grupoId é obrigatório" });
+  const { grupoId, gatilhos, status } = req.body;
   if (!STATUS_PERMITIDOS.includes(status)) {
     return res.status(400).json({ erro: `Status inválido. Use: ${STATUS_PERMITIDOS.join(", ")}` });
   }
-  const resultado = await Notificacao.updateMany(
-    { clientId: config.clientId, grupoId, status: "enviada" },
-    { $set: { status } }
-  );
+  const filtro = { clientId: config.clientId, status: "enviada" };
+  if (grupoId)         filtro.grupoId  = new mongoose.Types.ObjectId(grupoId);
+  if (gatilhos?.length) filtro.gatilho = { $in: gatilhos };
+
+  const resultado = await Notificacao.updateMany(filtro, { $set: { status } });
   res.json({ ok: true, atualizadas: resultado.modifiedCount });
 });
 

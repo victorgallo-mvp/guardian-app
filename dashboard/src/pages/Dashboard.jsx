@@ -387,8 +387,15 @@ function AlertCard({ n, onStatus, onFeedback, corBorda, onExpandir }) {
 
 // ─── coluna kanban ────────────────────────────────────────────────────────────
 
-function ColunaKanban({ coluna, alertas, onStatus, onFeedback, onExpandir }) {
+function ColunaKanban({ coluna, alertas, onStatus, onFeedback, onExpandir, onMarcarTodosColuna }) {
   const { icone: Icone, titulo, cor } = coluna;
+  const [marcando, setMarcando] = useState(false);
+
+  async function handleMarcarTodos() {
+    setMarcando(true);
+    await onMarcarTodosColuna(coluna.gatilhos);
+    setMarcando(false);
+  }
 
   return (
     <div className="flex flex-col min-h-0">
@@ -398,9 +405,19 @@ function ColunaKanban({ coluna, alertas, onStatus, onFeedback, onExpandir }) {
         </div>
         <span className="font-semibold text-gray-800 text-sm flex-1">{titulo}</span>
         {alertas.length > 0 && (
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cor.badge}`}>
-            {alertas.length}
-          </span>
+          <>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cor.badge}`}>
+              {alertas.length}
+            </span>
+            <button
+              onClick={handleMarcarTodos}
+              disabled={marcando}
+              title="Marcar todos como ciente"
+              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-white/60 rounded-lg transition-colors flex-shrink-0"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+          </>
         )}
       </div>
 
@@ -454,6 +471,7 @@ function StatCard({ icon: Icon, label, value, cor }) {
 export default function Dashboard() {
   const [busca, setBusca] = useState("");
   const [alertaExpandido, setAlertaExpandido] = useState(null);
+  const [marcandoTodos, setMarcandoTodos] = useState(false);
 
   const { dados: stats } = useApi("/dashboard/stats");
   const { dados: notifData, carregando, recarregar } = useApi(
@@ -487,17 +505,41 @@ export default function Dashboard() {
     await api.post("/feedback", { notificacaoId, tipo, motivo: motivo || undefined });
   }
 
+  async function marcarTodosComoVisto(gatilhos) {
+    const body = gatilhos?.length ? { gatilhos, status: "ciente" } : { status: "ciente" };
+    await api.patch("/notificacoes/lote", body);
+    recarregar();
+  }
+
+  async function marcarTodosGlobal() {
+    setMarcandoTodos(true);
+    await marcarTodosComoVisto(null);
+    setMarcandoTodos(false);
+  }
+
   const totalPendentes = alertas.length;
   const gruposComAlerta = new Set(alertas.map((n) => n.grupoId?._id)).size;
 
   return (
     <div className="p-6 h-full flex flex-col">
       {/* Cabeçalho */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Visão Geral</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Hoje em {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-        </p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Visão Geral</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Hoje em {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+          </p>
+        </div>
+        {totalPendentes > 0 && (
+          <button
+            onClick={marcarTodosGlobal}
+            disabled={marcandoTodos}
+            className="flex items-center gap-2 btn-secondary text-sm py-2 px-4 mt-1"
+          >
+            <Eye className="w-4 h-4" />
+            {marcandoTodos ? "Marcando..." : `Ciente de todos (${totalPendentes})`}
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -542,6 +584,7 @@ export default function Dashboard() {
               onStatus={atualizarStatus}
               onFeedback={darFeedback}
               onExpandir={setAlertaExpandido}
+              onMarcarTodosColuna={marcarTodosComoVisto}
             />
           ))}
         </div>

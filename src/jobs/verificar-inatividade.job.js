@@ -25,6 +25,7 @@ import { grupoEmSnooze } from "../core/filtros/grupo-permitido.filtro.js";
 import { mensagemEncerraConversa } from "../core/filtros/encerra-conversa.filtro.js";
 import { obterTreinamento } from "../core/ia/construtor-prompt.js";
 import Funcionario from "../dominio/funcionario.modelo.js";
+import clienteClaude from "../core/ia/cliente-claude.js";
 import config from "../config/index.js";
 
 const HORAS_SEM_RESPOSTA  = 2;
@@ -62,6 +63,69 @@ function ehFimDeSemanaBRT(date = new Date()) {
 function somenteEmojis(texto) {
   if (!texto?.trim()) return false;
   return texto.replace(/\p{Emoji_Presentation}/gu, "").trim().length === 0;
+}
+
+/**
+ * Usa Haiku para decidir se a última mensagem do cliente requer resposta da equipe.
+ * Recebe as últimas mensagens do grupo como contexto para evitar falsos positivos
+ * em reações casuais, mensagens acidentais ou agradecimentos.
+ *
+ * Fail-safe: em caso de erro da API, retorna true (notifica por precaução).
+ */
+async function mensagemRequerResposta(ultimaMsgCliente, grupoId) {
+  const historico = await Mensagem.find({
+    grupoId,
+    recebidaEm: { $lte: ultimaMsgCliente.recebidaEm }
+  })
+    .sort({ recebidaEm: -1 })
+    .limit(6)
+    .lean();
+
+  historico.reverse();
+
+  const linhas = historico.map((m) => {
+    const papel = m.isAgencia ? "Agência" : "Cliente";
+    const texto = (m.conteudo ?? "(mídia sem texto)").slice(0, 300);
+    return `[${papel}]: ${texto}`;
+  }).join("\n");
+
+  const prompt = `Você analisa conversas de WhatsApp entre clientes e agências de marketing digital.
+
+Conversa recente (ordem cronológica):
+${linhas}
+
+A última mensagem do [Cliente] requer uma resposta da agência?
+
+Responda NÃO se a mensagem for: reação casual, agradecimento, emoji ou risada, confirmação de algo já resolvido, elogio, mensagem acidental/enviada no grupo errado, ou continuação natural de uma troca já encerrada.
+Responda SIM se for: dúvida, pedido, reclamação, solicitação de ajuste, cobrança ou qualquer mensagem que espera uma ação ou retorno da equipe.
+
+Responda apenas SIM ou NÃO.`;
+
+  try {
+    const resposta = await clienteClaude.messages.create({
+      model: config.anthropic.modeloTriagem,
+      max_tokens: 5,
+      messages: [{ role: "user", content: prompt }]
+    });
+
+    const texto = resposta.content[0]?.text?.trim().toUpperCase() ?? "SIM";
+    const precisaResposta = !texto.startsWith("NÃO") && !texto.startsWith("NAO");
+
+    logger.debug("Triagem inatividade IA", {
+      grupoId,
+      ultimaMsgConteudo: ultimaMsgCliente.conteudo?.slice(0, 80),
+      respostaIA: texto,
+      precisaResposta
+    });
+
+    return precisaResposta;
+  } catch (erro) {
+    logger.warn("Triagem IA falhou, assumindo necessidade de resposta", {
+      grupoId,
+      erro: erro.message
+    });
+    return true; // fail-safe: na dúvida, notifica
+  }
 }
 
 /**
@@ -196,6 +260,17 @@ export async function verificarInatividade() {
       }).lean();
 
       if (jaNotificado) continue;
+
+      // Triagem com IA: a última mensagem realmente requer resposta?
+      const precisaResposta = await mensagemRequerResposta(ultimaMsgCliente, grupo._id);
+      if (!precisaResposta) {
+        logger.debug("Job inatividade: triagem IA descartou notificação", {
+          grupoId: grupo._id,
+          nomeGrupo: grupo.nomeGrupo,
+          mensagem: ultimaMsgCliente.conteudo?.slice(0, 80)
+        });
+        continue;
+      }
 
       const horasEsperando = Math.round(horasUteis);
 

@@ -4,7 +4,6 @@ import Grupo from "../../dominio/grupo.modelo.js";
 import Responsavel from "../../dominio/responsavel.modelo.js";
 import config from "../../config/index.js";
 import { CATALOGO_GATILHOS, obterGatilhosAplicaveis } from "../../core/gatilhos/catalogo.gatilhos.js";
-import { clienteEvolutionPadrao } from "../../infra/evolution-client.js";
 import logger from "../../infra/logger.js";
 
 const router = Router();
@@ -13,10 +12,11 @@ router.use(autenticarJwt);
 // Busca grupos disponíveis na Evolution API (para adicionar ao monitoramento)
 router.get("/whatsapp-disponiveis", async (req, res) => {
   try {
-    const resposta = await clienteEvolutionPadrao.get(
-      `/group/fetchAllGroups/${config.evolution.instanceName}?getParticipants=false`
-    );
-    const grupos = Array.isArray(resposta) ? resposta : [];
+    // Usa fetch nativo em vez do clienteEvolutionPadrao (axios trava em GETs com resposta grande)
+    const url = `${config.evolution.apiUrl}/group/fetchAllGroups/${config.evolution.instanceName}?getParticipants=false`;
+    const http = await fetch(url, { headers: { apikey: config.evolution.apiKey } });
+    if (!http.ok) throw new Error(`Evolution API retornou ${http.status}`);
+    const grupos = await http.json();
 
     // JIDs já monitorados (para marcar no retorno)
     const jaMonitorados = await Grupo.find({ clientId: config.clientId })

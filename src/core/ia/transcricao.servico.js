@@ -47,7 +47,7 @@ async function baixarAudio(mensagemPayload) {
   try {
     const resposta = await clienteEvolutionPadrao.post(
       `/chat/getBase64FromMediaMessage/${config.evolution.instanceName}`,
-      { key: mensagemPayload.key }
+      { message: { key: mensagemPayload.key, message: mensagemPayload.message } }
     );
 
     const base64 = resposta?.base64;

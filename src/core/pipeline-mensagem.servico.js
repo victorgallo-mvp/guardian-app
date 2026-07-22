@@ -174,7 +174,28 @@ export async function processarMensagemDeGrupo(mensagemPayload) {
   if (validacao.tipo === "audio") {
     const transcricao = await transcreverAudio(mensagemPayload);
     if (!transcricao) {
-      logger.info("Áudio sem transcrição disponível, descartando", { grupoId: grupo._id });
+      // Salva o áudio sem texto — o job de inatividade vai notificar após 2h sem resposta
+      const idMensagemWhatsapp = mensagemPayload.key.id;
+      const jaProcessada = await Mensagem.findOne({ idMensagemWhatsapp }).lean();
+      if (!jaProcessada) {
+        const remetenteJid = mensagemPayload.key.participant ?? mensagemPayload.key.remoteJid;
+        const participantAlt = mensagemPayload.key.participantAlt ?? null;
+        const remetenteNumero = participantAlt?.replace("@s.whatsapp.net", "") ?? null;
+        const isAgencia = await determinarIsAgencia(remetenteJid, remetenteNumero, grupo.clientId);
+        await Mensagem.create({
+          clientId: grupo.clientId,
+          grupoId: grupo._id,
+          idMensagemWhatsapp,
+          remetenteJid,
+          remetenteNome: mensagemPayload.pushName ?? "",
+          remetenteNumero,
+          isAgencia,
+          conteudo: null,
+          tipoMensagem: "audio",
+          recebidaEm: extrairDataRecebimento(mensagemPayload)
+        });
+        logger.info("Áudio sem transcrição salvo — aguardando resposta ou inatividade", { grupoId: grupo._id });
+      }
       return;
     }
     validacao.texto = transcricao;

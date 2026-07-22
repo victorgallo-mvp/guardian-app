@@ -4,9 +4,41 @@ import Grupo from "../../dominio/grupo.modelo.js";
 import Responsavel from "../../dominio/responsavel.modelo.js";
 import config from "../../config/index.js";
 import { CATALOGO_GATILHOS, obterGatilhosAplicaveis } from "../../core/gatilhos/catalogo.gatilhos.js";
+import { clienteEvolutionPadrao } from "../../infra/evolution-client.js";
+import logger from "../../infra/logger.js";
 
 const router = Router();
 router.use(autenticarJwt);
+
+// Busca grupos disponíveis na Evolution API (para adicionar ao monitoramento)
+router.get("/whatsapp-disponiveis", async (req, res) => {
+  try {
+    const resposta = await clienteEvolutionPadrao.get(
+      `/group/fetchAllGroups/${config.evolution.instanceName}?getParticipants=false`
+    );
+    const grupos = Array.isArray(resposta) ? resposta : [];
+
+    // JIDs já monitorados (para marcar no retorno)
+    const jaMonitorados = await Grupo.find({ clientId: config.clientId })
+      .select("idWhatsappGrupo")
+      .lean();
+    const jidsMonitorados = new Set(jaMonitorados.map((g) => g.idWhatsappGrupo));
+
+    const resultado = grupos
+      .filter((g) => g.id?.endsWith("@g.us"))
+      .map((g) => ({
+        jid: g.id,
+        nome: g.subject ?? g.id,
+        jaMonitorado: jidsMonitorados.has(g.id)
+      }))
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+
+    res.json(resultado);
+  } catch (erro) {
+    logger.error("Falha ao buscar grupos da Evolution API", { erro: erro.message });
+    res.status(502).json({ erro: "Não foi possível buscar grupos do WhatsApp. Tente novamente." });
+  }
+});
 
 // Lista todos os grupos (com stats resumidas)
 router.get("/", async (req, res) => {

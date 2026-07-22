@@ -73,6 +73,11 @@ function somenteEmojis(texto) {
  * Fail-safe: em caso de erro da API, retorna true (notifica por precaução).
  */
 async function mensagemRequerResposta(ultimaMsgCliente, grupoId) {
+  // Áudio sem transcrição: não temos texto para analisar, assume que precisa de resposta
+  if (ultimaMsgCliente.tipoMensagem === "audio" && !ultimaMsgCliente.conteudo) {
+    return true;
+  }
+
   const historico = await Mensagem.find({
     grupoId,
     recebidaEm: { $lte: ultimaMsgCliente.recebidaEm }

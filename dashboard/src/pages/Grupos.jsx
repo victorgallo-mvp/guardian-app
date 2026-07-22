@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronRight, Power, PowerOff } from "lucide-react";
+import { Plus, ChevronRight, Power, PowerOff, RefreshCw, Search } from "lucide-react";
 import { useApi } from "../hooks/useApi.js";
 import { api } from "../api/client.js";
 
@@ -24,6 +24,30 @@ function ModalNovoGrupo({ onFechar, onSalvo }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
+  // Busca de grupos do WhatsApp
+  const [buscando, setBuscando] = useState(false);
+  const [gruposWpp, setGruposWpp] = useState(null); // null = não buscado ainda
+  const [filtroGrupo, setFiltroGrupo] = useState("");
+
+  async function buscarGrupos() {
+    setBuscando(true);
+    setErro("");
+    try {
+      const lista = await api.get("/grupos/whatsapp-disponiveis");
+      setGruposWpp(lista);
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  function selecionarGrupo(g) {
+    setForm({ ...form, idWhatsappGrupo: g.jid, nomeGrupo: g.nome });
+    setGruposWpp(null);
+    setFiltroGrupo("");
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSalvando(true);
@@ -38,6 +62,10 @@ function ModalNovoGrupo({ onFechar, onSalvo }) {
     }
   }
 
+  const gruposFiltrados = gruposWpp?.filter((g) =>
+    g.nome.toLowerCase().includes(filtroGrupo.toLowerCase())
+  ) ?? [];
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
@@ -51,7 +79,18 @@ function ModalNovoGrupo({ onFechar, onSalvo }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ID do grupo (JID)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">ID do grupo (JID)</label>
+              <button
+                type="button"
+                onClick={buscarGrupos}
+                disabled={buscando}
+                className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${buscando ? "animate-spin" : ""}`} />
+                {buscando ? "Buscando..." : "Buscar grupos"}
+              </button>
+            </div>
             <input
               className="input"
               placeholder="120363XXXXXXXXX@g.us"
@@ -59,6 +98,44 @@ function ModalNovoGrupo({ onFechar, onSalvo }) {
               onChange={(e) => setForm({ ...form, idWhatsappGrupo: e.target.value })}
               required
             />
+            {gruposWpp !== null && (
+              <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                  <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <input
+                    className="text-sm flex-1 outline-none placeholder-gray-400"
+                    placeholder="Filtrar grupos..."
+                    value={filtroGrupo}
+                    onChange={(e) => setFiltroGrupo(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {gruposFiltrados.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">Nenhum grupo encontrado</p>
+                  ) : (
+                    gruposFiltrados.map((g) => (
+                      <button
+                        key={g.jid}
+                        type="button"
+                        onClick={() => selecionarGrupo(g)}
+                        disabled={g.jaMonitorado}
+                        className={`w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-2 ${
+                          g.jaMonitorado ? "opacity-40 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        <span className="font-medium text-gray-800 truncate">{g.nome}</span>
+                        {g.jaMonitorado ? (
+                          <span className="text-xs text-gray-400 shrink-0">já monitorado</span>
+                        ) : (
+                          <span className="text-xs text-gray-400 shrink-0 font-mono">{g.jid.split("@")[0].slice(-6)}</span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>

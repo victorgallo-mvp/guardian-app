@@ -112,7 +112,7 @@ Responda NÃO se a mensagem for:
 
 Responda SIM se for: dúvida, pedido, reclamação, solicitação de ajuste, cobrança, pergunta direta ou qualquer mensagem que claramente espera ação ou retorno da equipe.
 
-Em caso de dúvida genuína, responda NÃO — prefira não notificar a gerar alarme desnecessário.
+Em caso de dúvida genuína, responda SIM — prefira notificar a deixar um cliente sem resposta.
 
 Responda apenas SIM ou NÃO.`;
 

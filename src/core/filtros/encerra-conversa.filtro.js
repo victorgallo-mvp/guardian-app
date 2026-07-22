@@ -54,6 +54,16 @@ const PADROES = [
   // Promessas de contato (cliente vai ligar — não exige resposta da agência)
   /^(vou ligar|te ligo|me liga|ligo pra voce|ligo hoje)/,
 
+  // Updates do próprio cliente ("vou verificar", "estou analisando", "te aviso")
+  /^(vou verificar|vou analisar|estou analisando|vou dar retorno|te aviso|vou ver|deixa eu ver)/,
+
+  // Confirmações com emoji de check no final (ex: "Feito ✅", "Pronto ✅", "Ok 👍")
+  /^(feito|pronto|done|enviado|visto|viu)\s*[\p{Emoji_Presentation}]?[.!]?$/u,
+  /^(ok|certo|beleza|blz|ta|sim)\s*[\p{Emoji_Presentation}]{1,3}$/u,
+
+  // Mensagem curta (≤ 3 palavras) terminando com emoji de confirmação
+  /^[\w\s]{1,30}[✅✔️👍🙏]+$/u,
+
   // Qualquer mensagem composta só de emojis
   /^[\p{Emoji_Presentation}\s]+$/u,
 ];

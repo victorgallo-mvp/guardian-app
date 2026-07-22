@@ -8,7 +8,7 @@ import config from "../../config/index.js";
 const router = Router();
 router.use(autenticarJwt);
 
-const MAX_FRASES = 50;
+const MAX_FRASES = 150;
 const MAX_FRASE_CHARS = 150;
 const MAX_CONTEXTO_CHARS = 800;
 

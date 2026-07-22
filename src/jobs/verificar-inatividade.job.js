@@ -33,7 +33,7 @@ const HORAS_JANELA_MAXIMA = 72;  // calendário — cobre fins de semana
 
 // Expediente em BRT (America/Sao_Paulo — sem DST desde 2019, sempre UTC-3)
 const TZ                = "America/Sao_Paulo";
-const EXPEDIENTE_INICIO = 7;   // inclusive
+const EXPEDIENTE_INICIO = 8;   // inclusive
 const EXPEDIENTE_FIM    = 17;  // exclusive
 
 // ─── helpers de fuso ────────────────────────────────────────────────────────
@@ -101,8 +101,18 @@ ${linhas}
 
 A última mensagem do [Cliente] requer uma resposta da agência?
 
-Responda NÃO se a mensagem for: reação casual, agradecimento, emoji ou risada, confirmação de algo já resolvido, elogio, mensagem acidental/enviada no grupo errado, ou continuação natural de uma troca já encerrada.
-Responda SIM se for: dúvida, pedido, reclamação, solicitação de ajuste, cobrança ou qualquer mensagem que espera uma ação ou retorno da equipe.
+Responda NÃO se a mensagem for:
+- Confirmação ou encerramento: "ok", "feito", "pronto", "certo", "combinado", "obrigado", "valeu", mesmo acompanhados de emoji (ex: "Feito ✅", "Ok 👍")
+- Emoji isolado ou reação
+- Nome de pessoa, número avulso, código ou menção (@alguém) sem contexto
+- Fragmento de frase incompleta sem verbo ou pedido claro
+- Agradecimento, elogio ou despedida
+- Mensagem acidental ou enviada no grupo errado
+- Update que o próprio cliente deu ("vou verificar", "estou analisando", "te aviso depois")
+
+Responda SIM se for: dúvida, pedido, reclamação, solicitação de ajuste, cobrança, pergunta direta ou qualquer mensagem que claramente espera ação ou retorno da equipe.
+
+Em caso de dúvida genuína, responda NÃO — prefira não notificar a gerar alarme desnecessário.
 
 Responda apenas SIM ou NÃO.`;
 

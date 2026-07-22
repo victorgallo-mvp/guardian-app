@@ -53,9 +53,14 @@ export async function obterTreinamento(clientId) {
     return treinamentoCache.data;
   }
 
-  const [cliente, exemplosNegativos] = await Promise.all([
+  const [cliente, exemplosNegativos, exemplosPositivos] = await Promise.all([
     Cliente.findOne({ identificador: clientId }).select("treinamento").lean(),
     Feedback.find({ clientId, tipo: "negativo" })
+      .sort({ criadoEm: -1 })
+      .limit(8)
+      .select("mensagemConteudo gatilho motivo")
+      .lean(),
+    Feedback.find({ clientId, tipo: "positivo" })
       .sort({ criadoEm: -1 })
       .limit(5)
       .select("mensagemConteudo gatilho motivo")
@@ -65,7 +70,8 @@ export async function obterTreinamento(clientId) {
   const data = {
     frases: (cliente?.treinamento?.frasesEncerraConversa ?? []).map((f) => f.texto),
     contexto: cliente?.treinamento?.contextoPersonalizado ?? null,
-    exemplosNegativos
+    exemplosNegativos,
+    exemplosPositivos
   };
 
   treinamentoCache = { data, expiraEm: agora + CACHE_TTL_MS, clientId };
@@ -170,11 +176,27 @@ async function montarContextoAdicional(grupo) {
     const linhas = treinamento.exemplosNegativos
       .filter((e) => e.mensagemConteudo)
       .map((e) => {
-        const msg = e.mensagemConteudo.slice(0, 100);
-        return e.motivo ? `- "${msg}" (${e.motivo})` : `- "${msg}"`;
+        const msg = e.mensagemConteudo.slice(0, 120);
+        const gatilho = e.gatilho ? ` [classificado como: ${e.gatilho}]` : "";
+        const motivo = e.motivo ? ` — ${e.motivo}` : "";
+        return `- "${msg}"${gatilho}${motivo}`;
       });
     if (linhas.length > 0) {
-      partes.push(`[Exemplos de mensagens que NÃO são alertas para este cliente]\n${linhas.join("\n")}`);
+      partes.push(`[Exemplos de alertas INCORRETOS para este cliente — não repita estes erros]\n${linhas.join("\n")}`);
+    }
+  }
+
+  if (treinamento.exemplosPositivos?.length > 0) {
+    const linhas = treinamento.exemplosPositivos
+      .filter((e) => e.mensagemConteudo)
+      .map((e) => {
+        const msg = e.mensagemConteudo.slice(0, 120);
+        const gatilho = e.gatilho ? ` [tipo: ${e.gatilho}]` : "";
+        const motivo = e.motivo ? ` — ${e.motivo}` : "";
+        return `- "${msg}"${gatilho}${motivo}`;
+      });
+    if (linhas.length > 0) {
+      partes.push(`[Exemplos de alertas CORRETOS confirmados para este cliente — continue identificando padrões similares]\n${linhas.join("\n")}`);
     }
   }
 

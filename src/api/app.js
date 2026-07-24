@@ -12,6 +12,7 @@ import catalogoRotas from "./rotas/catalogo.rotas.js";
 import configRotas from "./rotas/config.rotas.js";
 import feedbackRotas from "./rotas/feedback.rotas.js";
 import treinamentoRotas from "./rotas/treinamento.rotas.js";
+import relatoriosRotas from "./rotas/relatorios.rotas.js";
 import { tratadorErros } from "./middlewares/tratador-erros.middleware.js";
 
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api/catalogo", catalogoRotas);
 app.use("/api/config", configRotas);
 app.use("/api/feedback", feedbackRotas);
 app.use("/api/treinamento", treinamentoRotas);
+app.use("/api/relatorios", relatoriosRotas);
 
 app.use((req, res) => {
   res.status(404).json({ erro: "Rota não encontrada" });

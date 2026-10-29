@@ -47,7 +47,10 @@ const esquemaEnv = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.string().default("info"),
 
-  WEBHOOK_URL_BASE: z.string().url("WEBHOOK_URL_BASE deve ser uma URL válida")
+  WEBHOOK_URL_BASE: z.string().url("WEBHOOK_URL_BASE deve ser uma URL válida"),
+
+  // Canal externo pra alertas operacionais (queda do WhatsApp): POST JSON
+  ALERTA_WEBHOOK_URL: z.string().url("ALERTA_WEBHOOK_URL deve ser uma URL válida").optional()
 });
 
 function carregarEnv() {
@@ -121,7 +124,11 @@ const config = {
     nivelLog: env.LOG_LEVEL
   },
 
-  webhookUrlBase: env.WEBHOOK_URL_BASE
+  webhookUrlBase: env.WEBHOOK_URL_BASE,
+
+  alertas: {
+    webhookUrl: env.ALERTA_WEBHOOK_URL ?? null
+  }
 };
 
 export default config;

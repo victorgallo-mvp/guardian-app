@@ -27,6 +27,7 @@ import { obterTreinamento } from "../core/ia/construtor-prompt.js";
 import Funcionario from "../dominio/funcionario.modelo.js";
 import clienteClaude from "../core/ia/cliente-claude.js";
 import config from "../config/index.js";
+import { consultarEstadoAoVivo } from "../core/conexao/monitor-conexao.servico.js";
 
 const HORAS_SEM_RESPOSTA  = 2;
 const HORAS_JANELA_MAXIMA = 72;  // calendário — cobre fins de semana
@@ -196,6 +197,14 @@ export async function verificarInatividade() {
   const horaAtual = horaBRT(agora);
   if (horaAtual < EXPEDIENTE_INICIO || horaAtual >= EXPEDIENTE_FIM) {
     logger.debug("Job inatividade: fora do expediente, abortando", { horaAtual });
+    return;
+  }
+
+  // Sem sessão WhatsApp não há como notificar: evita recriar a mesma análise
+  // a cada 30min enquanto a instância está fora (análises órfãs + custo de IA).
+  const conexao = await consultarEstadoAoVivo();
+  if (conexao.estado !== "open") {
+    logger.warn("Job inatividade: instância WhatsApp fora do ar, abortando", conexao);
     return;
   }
 

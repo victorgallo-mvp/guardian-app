@@ -8,6 +8,7 @@ process.env.ANTHROPIC_API_KEY ??= "sk-ant-test";
 process.env.EVOLUTION_API_URL ??= "http://localhost:0";
 process.env.EVOLUTION_API_KEY ??= "test";
 process.env.EVOLUTION_INSTANCE_NAME ??= "test";
+process.env.NOTIFICACAO_GRUPO_JID ??= "120363000000000000@g.us";
 process.env.CLIENT_ID ??= "agencia-cobaia";
 process.env.ADMIN_TOKEN ??= "token-de-teste-1234";
 process.env.WEBHOOK_URL_BASE ??= "http://localhost:3000";

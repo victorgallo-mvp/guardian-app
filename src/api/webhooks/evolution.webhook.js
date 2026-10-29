@@ -2,7 +2,8 @@
  * Controller do webhook da Evolution API.
  *
  * Ponto de entrada de todo o pipeline: recebe eventos `messages.upsert` e
- * decide entre dois fluxos:
+ * decide entre dois fluxos (eventos `connection.update` vão pro monitor de
+ * conexão em `core/conexao/monitor-conexao.servico.js`):
  *
  * - Mensagem de grupo monitorado -> `core/pipeline-mensagem.servico.js`
  *   (filtros, persistência, triagem, análise profunda e notificação).
@@ -20,6 +21,7 @@ import {
   classificarTipoFeedback
 } from "../../core/feedback/interpretador.js";
 import { processarFeedback } from "../../core/feedback/aprendizado.servico.js";
+import { processarEventoConexao } from "../../core/conexao/monitor-conexao.servico.js";
 
 /**
  * Processa uma DM recebida de um responsável: tenta interpretá-la como
@@ -59,6 +61,11 @@ async function processarMensagemDireta(mensagemPayload) {
  * @param {object} payload - corpo do webhook (`{ event, instance, data }`)
  */
 export async function processarEventoWebhook(payload) {
+  if (payload?.event === "connection.update") {
+    await processarEventoConexao(payload.data);
+    return;
+  }
+
   if (payload?.event !== "messages.upsert") return;
 
   const dados = payload.data;

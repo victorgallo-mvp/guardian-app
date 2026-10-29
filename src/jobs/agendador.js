@@ -9,9 +9,23 @@ import logger from "../infra/logger.js";
 import { verificarInatividade } from "./verificar-inatividade.job.js";
 import { enviarRelatorioDiario } from "./relatorio-diario.job.js";
 import { enviarRelatorioSemanal } from "./relatorio-semanal.job.js";
+import { verificarConexao } from "../core/conexao/monitor-conexao.servico.js";
 
 /** Registra os jobs periódicos da aplicação. */
 export function iniciarJobs() {
+  // A cada 5 minutos: confere se a sessão WhatsApp continua conectada
+  // (rede de segurança do webhook connection.update). Roda uma vez no boot
+  // pra registrar o estado inicial.
+  const verificarConexaoSeguro = async () => {
+    try {
+      await verificarConexao();
+    } catch (erro) {
+      logger.error("Falha no job de verificação de conexão", { erro: erro.message, stack: erro.stack });
+    }
+  };
+  cron.schedule("*/5 * * * *", verificarConexaoSeguro);
+  setTimeout(verificarConexaoSeguro, 5_000);
+
   // A cada 30 minutos: reavalia mensagens sem resposta há tempo suficiente
   cron.schedule("*/30 * * * *", async () => {
     try {
@@ -39,5 +53,5 @@ export function iniciarJobs() {
     }
   });
 
-  logger.info("Jobs periódicos agendados (inatividade a cada 30min, relatório diário às 18:00 SP, relatório semanal terças às 19:00 SP)");
+  logger.info("Jobs periódicos agendados (conexão a cada 5min, inatividade a cada 30min, relatório diário às 18:00 SP, relatório semanal terças às 19:00 SP)");
 }
